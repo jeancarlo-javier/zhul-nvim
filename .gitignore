@@ -1,0 +1,8 @@
+# macOS
+.DS_Store
+
+# Neovim runtime/state (this repo only tracks config, not installed plugins/data)
+nvim/lazy/
+nvim/.bak*
+nvim/**/*.bak
+nvim/**/*.bak[0-9]

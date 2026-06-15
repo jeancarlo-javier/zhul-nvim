@@ -1,0 +1,27 @@
+{
+  "title": "Terminal split cycling (Ctrl+[ → F13)",
+  "rules": [
+    {
+      "description": "Ctrl+[ acts as F13 in Warp/Ghostty (Neovim reverse split-cycle; avoids the Esc collision)",
+      "manipulators": [
+        {
+          "type": "basic",
+          "from": {
+            "key_code": "open_bracket",
+            "modifiers": { "mandatory": ["control"], "optional": ["caps_lock"] }
+          },
+          "to": [{ "key_code": "f13" }],
+          "conditions": [
+            {
+              "type": "frontmost_application_if",
+              "bundle_identifiers": [
+                "^dev\\.warp\\.Warp-Stable$",
+                "^com\\.mitchellh\\.ghostty$"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
