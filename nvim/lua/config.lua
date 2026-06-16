@@ -114,6 +114,33 @@ keymap.set("n", "k", "v:count == 0 ? 'gk' : 'k'", { expr = true, silent = true }
 keymap.set("v", "J", ":m '>+1<CR>gv=gv", { desc = "Move text down" })
 keymap.set("v", "K", ":m '<-2<CR>gv=gv", { desc = "Move text up" })
 
+-- Mover líneas como un pro: <leader>m + j/k
+-- Por defecto mueve 1 línea. Si antepones un número, mueve esa cantidad:
+--   <space>mj        -> baja 1 línea
+--   3<space>mj       -> baja 3 líneas
+--   5<space>mk       -> sube 5 líneas
+-- El número escrito antes del atajo queda en vim.v.count1 (=1 si no escribes nada).
+-- Se recorta a los bordes del buffer para que nunca falle el comando :move,
+-- y se reindenta la línea movida (==) igual que J/K en modo visual.
+local function move_line(direction)
+  local count = vim.v.count1
+  local cur = vim.fn.line(".")
+  local last = vim.fn.line("$")
+  if direction == "down" then
+    local target = math.min(cur + count, last) -- no pasar del final
+    if target == cur then return end           -- ya está abajo del todo
+    vim.cmd("move " .. target)
+  else
+    local target = math.max(cur - count, 1)     -- no pasar del principio
+    if target == cur then return end            -- ya está arriba del todo
+    vim.cmd("move " .. (target - 1))            -- :move 0 = al principio del buffer
+  end
+  vim.cmd("normal! ==") -- reindentar la línea en su nueva posición
+end
+
+keymap.set("n", "<leader>mj", function() move_line("down") end, { desc = "Mover línea abajo (N opcional)" })
+keymap.set("n", "<leader>mk", function() move_line("up") end, { desc = "Mover línea arriba (N opcional)" })
+
 -- Better indenting
 keymap.set("v", "<", "<gv")
 keymap.set("v", ">", ">gv")

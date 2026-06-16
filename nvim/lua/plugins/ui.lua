@@ -21,7 +21,11 @@ return {
   {
     "folke/which-key.nvim",
     event = "VeryLazy",
-    opts = {},
+    opts = {
+      spec = {
+        { "<leader>m", group = "mover líneas" }, -- <space>m + j/k (con N opcional)
+      },
+    },
   },
 
   -- Quality of life de folke: bigfile, indent guides, notifier, statuscolumn, etc.
