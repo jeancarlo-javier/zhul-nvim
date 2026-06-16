@@ -102,6 +102,22 @@ keymap.set("n", "<leader>tx", "<cmd>tabclose<CR>", { desc = "Close current tab" 
 keymap.set("n", "<leader>tn", "<cmd>tabn<CR>", { desc = "Go to next tab" })
 keymap.set("n", "<leader>tp", "<cmd>tabp<CR>", { desc = "Go to previous tab" })
 
+-- Traductor (translate-shell) — resolver una palabra sin salir de Neovim.
+-- Convive con los atajos de pestañas de arriba (to/tx/tn/tp). El resultado sale en
+-- un float bajo el cursor. Por defecto traduce EN<->ES en ambos sentidos a la vez.
+keymap.set("n", "<leader>tt", function() require("translate").prompt() end,
+  { desc = "Traducir: pedir palabra (ES+EN)" })
+keymap.set("n", "<leader>tw", function() require("translate").cword() end,
+  { desc = "Traducir palabra bajo el cursor (ES+EN)" })
+keymap.set("n", "<leader>ts", function() require("translate").prompt("es") end,
+  { desc = "Traducir → español" })
+keymap.set("n", "<leader>te", function() require("translate").prompt("en") end,
+  { desc = "Traducir → inglés" })
+keymap.set("n", "<leader>tl", function() require("translate").prompt_lang() end,
+  { desc = "Traducir: elegir idioma destino" })
+keymap.set("x", "<leader>tt", function() require("translate").selection() end,
+  { desc = "Traducir selección (ES+EN)" })
+
 -- Buffer navigation
 keymap.set("n", "<S-h>", "<cmd>bprevious<CR>", { desc = "Previous buffer" })
 keymap.set("n", "<S-l>", "<cmd>bnext<CR>", { desc = "Next buffer" })

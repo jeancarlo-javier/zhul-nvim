@@ -27,6 +27,7 @@ Theme is **Catppuccin Mocha** with a **transparent background** (it inherits the
 | **ripgrep** (`rg`) | Telescope `live_grep` |
 | **Node.js** | `ts_ls`, `eslint`, `prettier` |
 | **Karabiner-Elements** (macOS) | optional — only for the `Ctrl+[` remap |
+| **translate-shell** (`trans`) | inline translator — `brew install translate-shell` |
 
 Language servers (`lua_ls`, `ts_ls`, `pyright`, `rust_analyzer`, `eslint`) and tools (`stylua`, `prettier`, `ruff`) are installed automatically by **Mason** on first launch.
 
@@ -43,6 +44,7 @@ zhul-nvim/
 │   ├── lazy-lock.json          # pinned plugin versions (reproducible installs)
 │   └── lua/
 │       ├── config.lua          # options + all core keymaps
+│       ├── translate.lua       # inline translator (translate-shell float)
 │       ├── winbar.lua          # custom per-window file header
 │       └── plugins/
 │           ├── colorscheme.lua # catppuccin mocha, transparent
@@ -124,6 +126,21 @@ Leader = `Space`.
 | `<leader>xx/xX/xs/xq` | Trouble: diagnostics / buffer / symbols / quickfix |
 | `gsa/gsd/gsr` … | mini.surround add / delete / replace |
 
+### Translator (`lua/translate.lua`)
+
+Look up a word without leaving your editor. Result appears in a rounded float and closes on cursor move. Defaults to **ES+EN** (both directions at once, so you never have to guess which way).
+
+| Key | Mode | Action |
+|-----|------|--------|
+| `<leader>tt` | normal | Prompt for a word → translate ES↔EN |
+| `<leader>tw` | normal | Translate **word under cursor** (zero typing) |
+| `<leader>ts` | normal | Prompt → translate to **Spanish** |
+| `<leader>te` | normal | Prompt → translate to **English** |
+| `<leader>tl` | normal | Prompt for target language, then word |
+| `<leader>tt` | visual | Translate **selected text** ES↔EN |
+
+`<leader>tw` is the sweet spot for reading code or docs — cursor on an unknown word, one chord, done.
+
 ### Completion (blink.cmp)
 `Tab` / `Shift-Tab` navigate · `<C-space>` docs · `<C-e>` cancel · `<C-k>` signature.
 
@@ -182,6 +199,36 @@ Setup:
 3. The `<F13>` → `<C-w>W` map is already in `lua/config.lua`.
 
 > Caveat: at the OS level Karabiner can't distinguish nvim from the shell, so inside those terminals `Ctrl+[` no longer sends `Esc` at the shell prompt (only matters for shell vi-mode).
+
+---
+
+## 🌐 The `tr` alias (shell ↔ translator trick)
+
+Unix's real `tr` command **translates characters**, not languages — it maps byte-by-byte (e.g. lowercase → uppercase):
+
+```bash
+echo "hello" | tr 'a-z' 'A-Z'   # → HELLO
+echo "a1b2"  | tr -d '0-9'      # → ab  (delete digits)
+```
+
+It reads from **stdin**, not arguments, and has no `--language` flags. `--es` would be a fatal error.
+
+The alias below wraps it so that `tr --es "word"` becomes `trans -b :es "word"`, while keeping all normal `tr` usage intact:
+
+```zsh
+# ~/.zshrc
+tr () {
+  if [[ "$1" == --?* ]]; then
+    local lang="${1#--}"   # strip -- → "es"
+    shift
+    trans -b ":$lang" "$@" # delegate to translate-shell
+  else
+    command tr "$@"        # real tr unchanged
+  fi
+}
+```
+
+**Why it doesn't work inside nvim's `:!`**: nvim runs shell commands as `zsh -c "…"` (non-interactive), which never sources `~/.zshrc`. Shell functions defined there are invisible. The `lua/translate.lua` module calls `trans` directly via `vim.system`, bypassing the shell entirely — that's the fix.
 
 ---
 
