@@ -39,6 +39,24 @@ opt.sidescrolloff = 8
 opt.mouse = "a"
 opt.smartindent = true
 
+-- Indentación por lenguaje: 2 espacios es la base (arriba), pero Python (PEP8)
+-- y Go/Make (tabs reales) tienen su propio estándar — se ajustan por filetype.
+-- editorconfig (nativo desde 0.9, vim.g.editorconfig) manda por encima de esto
+-- si el proyecto trae un .editorconfig.
+local ft_indent = {
+  python = { tabstop = 4, shiftwidth = 4 },
+  go = { tabstop = 4, shiftwidth = 4, expandtab = false },
+  make = { expandtab = false },
+}
+vim.api.nvim_create_autocmd("FileType", {
+  group = vim.api.nvim_create_augroup("ft_indent", { clear = true }),
+  callback = function(ev)
+    local cfg = ft_indent[ev.match]
+    if not cfg then return end
+    for k, v in pairs(cfg) do vim.bo[ev.buf][k] = v end
+  end,
+})
+
 -- Quality of life (Neovim 0.11)
 opt.winborder = "rounded"   -- bordes redondeados en ventanas flotantes (hover, etc.)
 opt.confirm = true          -- preguntar al salir con cambios sin guardar (en vez de fallar)
@@ -160,6 +178,9 @@ keymap.set("n", "<leader>mk", function() move_line("up") end, { desc = "Mover l�
 -- Better indenting
 keymap.set("v", "<", "<gv")
 keymap.set("v", ">", ">gv")
+
+-- Shift-Tab para dedent en modo inserción (equivalente a Ctrl-D nativo)
+keymap.set("i", "<S-Tab>", "<C-d>", { desc = "Dedent line" })
 
 -- ¿Arrancamos en modo directorio? (nvim . / nvim carpeta, NO nvim archivo)
 do
