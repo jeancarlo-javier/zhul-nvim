@@ -36,10 +36,12 @@ return {
     opts = {
       bigfile = { enabled = true },     -- desactiva features pesadas en archivos enormes
       quickfile = { enabled = true },   -- arranque más rápido al abrir un archivo directo
-      indent = { enabled = true },      -- guías de indentación + scope
+      -- guías de indentación; underline en el scope actual como señal extra
+      -- (no depende solo del color, más accesible para daltonismo/bajo contraste)
+      indent = { enabled = true, scope = { underline = true } },
       notifier = { enabled = true },    -- reemplaza vim.notify con notificaciones bonitas
       statuscolumn = { enabled = true },-- columna de números/signos/folds unificada
-      scope = { enabled = true },
+      scope = { enabled = true },       -- chunk scope (minimap del bloque lógico)
       words = { enabled = true },       -- resalta la palabra bajo el cursor (LSP references)
       input = { enabled = true },       -- reemplaza vim.ui.input
     },
