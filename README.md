@@ -3,7 +3,7 @@
 > My personal **Neovim** configuration — modular Lua, [`lazy.nvim`](https://github.com/folke/lazy.nvim), Neovim **0.11+**.
 > A portable backup & restore kit so I can stand the whole setup back up on a fresh machine in minutes.
 
-Theme is **Catppuccin Mocha** with a **transparent background** (it inherits the terminal's background), a single global statusline (`lualine`), and a custom **per-window file header (winbar)** so you can always tell which file is in which split — even in diffs.
+Theme is **Kanagawa Dragon** (warm, desaturated ink palette) with a **transparent background** (it inherits the terminal's background), a single global statusline (`lualine`), and a custom **per-window file header (winbar)** so you can always tell which file is in which split — even in diffs.
 
 ---
 
@@ -47,7 +47,7 @@ zhul-nvim/
 │       ├── translate.lua       # inline translator (translate-shell float)
 │       ├── winbar.lua          # custom per-window file header
 │       └── plugins/
-│           ├── colorscheme.lua # catppuccin mocha, transparent
+│           ├── colorscheme.lua # kanagawa dragon, transparent
 │           ├── editor.lua      # telescope, nvim-tree, gitsigns, flash, trouble, mini
 │           ├── lsp.lua         # mason, lspconfig, blink.cmp, conform, lazydev
 │           ├── treesitter.lua  # syntax + indent
@@ -151,7 +151,7 @@ Look up a word without leaving your editor. Result appears in a rounded float an
 | Plugin | Role |
 |--------|------|
 | `folke/lazy.nvim` | Plugin manager |
-| `catppuccin/nvim` | Colorscheme (mocha, transparent) |
+| `rebelot/kanagawa.nvim` | Colorscheme (dragon, transparent) |
 | `nvim-telescope/telescope.nvim` | Fuzzy finder |
 | `nvim-tree/nvim-tree.lua` | File explorer |
 | `lewis6991/gitsigns.nvim` | Git gutter + hunks (`attach_to_untracked = true`) |

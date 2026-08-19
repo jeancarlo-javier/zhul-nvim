@@ -17,7 +17,7 @@ vim.opt.rtp:prepend(lazypath)
 
 -- 3) Plugins: importa todos los specs de lua/plugins/
 require("lazy").setup({ { import = "plugins" } }, {
-  install = { colorscheme = { "catppuccin-mocha" } },
+  install = { colorscheme = { "kanagawa-dragon" } },
   checker = { enabled = true, notify = false }, -- chequea updates en silencio
   change_detection = { notify = false },
 })

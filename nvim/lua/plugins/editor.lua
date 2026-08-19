@@ -35,11 +35,37 @@ return {
       hijack_netrw = true, -- reemplaza al explorador viejo (netrw)
       hijack_directories = { enable = true, auto_open = true }, -- `nvim .` abre el árbol
       view = {
-        width = 30,
+        width = 32,
+        signcolumn = "no",     -- git y diagnósticos van pegados al nombre, no en columna aparte
         number = true,         -- número absoluto en la línea del cursor
         relativenumber = true, -- números relativos en el resto (para hacer 5j, 3k...)
       },
-      renderer = { group_empty = true },
+      renderer = {
+        group_empty = true,
+        full_name = true,                    -- nombre completo en flotante cuando no cabe
+        root_folder_label = false,           -- sin cabecera de ruta: ya sabes dónde estás
+        indent_width = 2,
+        indent_markers = { enable = false }, -- sin guías └│: la sangría ya marca el nivel
+        hidden_display = "simple",           -- "(1 hidden)" bajo la carpeta que filtró algo
+        highlight_git = "icon",              -- git colorea SOLO el glifo, no el nombre
+        highlight_opened_files = "name",     -- archivo abierto en terracota (ver colorscheme.lua)
+        highlight_diagnostics = "icon",      -- colorea el signo de error/warning
+        icons = {
+          git_placement = "after",
+          diagnostics_placement = "after",
+          show = { folder_arrow = false },   -- el icono de carpeta ya dice si está abierta
+          glyphs = {
+            git = {
+              unstaged = "●", staged = "●", unmerged = "", renamed = "›",
+              untracked = "○", deleted = "✗", ignored = "",
+            },
+          },
+        },
+      },
+      diagnostics = {
+        enable = true,                       -- errores/warnings del LSP dentro del árbol
+        icons = { hint = "·", info = "·", warning = "▲", error = "▲" },
+      },
       filters = { dotfiles = false },
       on_attach = function(bufnr)
         local api = require("nvim-tree.api")

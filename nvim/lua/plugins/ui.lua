@@ -9,7 +9,7 @@ return {
     event = "VeryLazy",
     opts = {
       options = {
-        theme = "catppuccin",
+        theme = "auto", -- toma los colores del colorscheme activo (kanagawa)
         globalstatus = true, -- una sola statusline para todas las ventanas (0.7+)
         section_separators = "",
         component_separators = "|",
@@ -24,6 +24,7 @@ return {
     opts = {
       spec = {
         { "<leader>m", group = "mover líneas" }, -- <space>m + j/k (con N opcional)
+        { "<leader>l", group = "líneas" },       -- <space>ll = toggle wrap
       },
     },
   },
