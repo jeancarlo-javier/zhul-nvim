@@ -57,6 +57,29 @@ vim.api.nvim_create_autocmd("FileType", {
   end,
 })
 
+-- Wrap solo en prosa: en código el wrap estorba (por eso opt.wrap = false arriba),
+-- pero en markdown/texto las líneas largas se cortan en el borde y no se pueden leer.
+-- linebreak = corta entre palabras, no a mitad. breakindent = la continuación mantiene
+-- la sangría (clave en listas de markdown). showbreak = marca visual de continuación.
+opt.linebreak = true   -- inertes mientras wrap esté off; así solo hace falta togglear wrap
+opt.breakindent = true
+opt.showbreak = "↳ "
+-- Se decide en ambos sentidos (true/false) a propósito: 'wrap' es opción de VENTANA,
+-- así que si solo lo encendieras en markdown se quedaría encendido al abrir un .ts
+-- después en esa misma ventana.
+local prose_ft = { markdown = true, text = true, gitcommit = true, tex = true, typst = true, rst = true }
+vim.api.nvim_create_autocmd("FileType", {
+  group = vim.api.nvim_create_augroup("prose_wrap", { clear = true }),
+  callback = function(ev) vim.opt_local.wrap = prose_ft[ev.match] or false end,
+})
+
+-- Toggle wrap manual para cualquier archivo (p.ej. un JSON de una sola línea, o
+-- apagarlo en un markdown puntual). Afecta solo a la ventana actual.
+keymap.set("n", "<leader>ll", function()
+  vim.opt_local.wrap = not vim.wo.wrap
+  vim.notify("Wrap: " .. (vim.wo.wrap and "ON" or "OFF"))
+end, { desc = "Toggle wrap (cortar líneas largas)" })
+
 -- Quality of life (Neovim 0.11)
 opt.winborder = "rounded"   -- bordes redondeados en ventanas flotantes (hover, etc.)
 opt.confirm = true          -- preguntar al salir con cambios sin guardar (en vez de fallar)
@@ -82,6 +105,8 @@ end, { desc = "Toggle números: absoluto/híbrido" })
 
 -- Essential keymaps
 keymap.set("i", "jk", "<ESC>", { desc = "Exit insert mode with jk" })
+-- Copiar selección visual al portapapeles del sistema con ⌘C.
+keymap.set("x", "<D-c>", '"+y', { desc = "Copiar selección al portapapeles" })
 
 -- Clear search highlights
 keymap.set("n", "<leader>nh", ":nohl<CR>", { desc = "Clear search highlights" })
