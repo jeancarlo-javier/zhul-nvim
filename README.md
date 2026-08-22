@@ -39,8 +39,8 @@ Language servers (`lua_ls`, `ts_ls`, `pyright`, `rust_analyzer`, `eslint`) and t
 ```
 zhul-nvim/
 ├── README.md
-├── install.sh                 # restore script (backs up any existing config)
-├── nvim/                       # → goes to ~/.config/nvim
+├── install.sh                 # symlinks nvim/ into place (backs up any existing config)
+├── nvim/                       # ← ~/.config/nvim is a symlink to this
 │   ├── init.lua                # entry: config → lazy → plugins → diagnostics → winbar
 │   ├── lazy-lock.json          # pinned plugin versions (reproducible installs)
 │   └── lua/
@@ -65,11 +65,18 @@ zhul-nvim/
 ```bash
 git clone https://github.com/jeancarlo-javier/zhul-nvim.git
 cd zhul-nvim
-./install.sh          # copies nvim/ → ~/.config/nvim (backs up any existing) + the Karabiner rule
+./install.sh          # symlinks ~/.config/nvim → nvim/ (backs up any existing) + the Karabiner rule
 nvim                  # lazy.nvim installs plugins; Mason installs servers/formatters
 ```
 
-Prefer to do it by hand? Just copy `nvim/` to `~/.config/nvim` and launch `nvim`.
+Prefer to do it by hand? `ln -s "$PWD/nvim" ~/.config/nvim` and launch `nvim`.
+
+### This repo is the source of truth
+
+`~/.config/nvim` is a **symlink** into `nvim/`, not a copy. Editing the live config edits the repo,
+so there is no sync step and no silent drift — `git status` shows a change the moment you make one.
+`lazy-lock.json` lands here too, and `.gitignore` already swallows the `*.bak` files nvim leaves
+behind. Clone anywhere you like; `install.sh` links from wherever you put it.
 
 ---
 

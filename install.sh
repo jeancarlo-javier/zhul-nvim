@@ -8,15 +8,20 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NVIM_DST="$HOME/.config/nvim"
 KB_DST="$HOME/.config/karabiner/assets/complex_modifications"
 
-echo "==> Restoring Neovim config to $NVIM_DST"
-if [ -e "$NVIM_DST" ]; then
-  BK="$NVIM_DST.backup.$(date +%Y%m%d-%H%M%S)"
-  echo "    existing config found -> backing up to $BK"
-  mv "$NVIM_DST" "$BK"
+# This repo is the SOURCE OF TRUTH: ~/.config/nvim is a symlink into it, not a copy.
+# Editing the live config edits the repo, so `git status` shows drift the moment it happens.
+echo "==> Linking Neovim config: $NVIM_DST -> $HERE/nvim"
+if [ -L "$NVIM_DST" ] && [ "$(readlink "$NVIM_DST")" = "$HERE/nvim" ]; then
+  echo "    already linked, nothing to do."
+else
+  if [ -e "$NVIM_DST" ]; then
+    BK="$NVIM_DST.backup.$(date +%Y%m%d-%H%M%S)"
+    echo "    existing config found -> backing up to $BK"
+    mv "$NVIM_DST" "$BK"
+  fi
+  ln -s "$HERE/nvim" "$NVIM_DST"
+  echo "    done."
 fi
-mkdir -p "$NVIM_DST"
-cp -R "$HERE/nvim/." "$NVIM_DST/"
-echo "    done."
 
 if [ "$(uname)" = "Darwin" ]; then
   echo "==> Installing Karabiner Ctrl+[ rule to $KB_DST"
