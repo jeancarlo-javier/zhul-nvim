@@ -45,6 +45,7 @@ return {
       scope = { enabled = true },       -- chunk scope (minimap del bloque lógico)
       words = { enabled = true },       -- resalta la palabra bajo el cursor (LSP references)
       input = { enabled = true },       -- reemplaza vim.ui.input
+      image = { enabled = true },       -- muestra imágenes reales (Kitty graphics: Ghostty/kitty/wezterm)
     },
   },
 

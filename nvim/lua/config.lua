@@ -238,3 +238,18 @@ vim.api.nvim_create_autocmd("QuitPre", {
 vim.api.nvim_create_user_command("Q", function(o)
   vim.cmd("qa" .. (o.bang and "!" or ""))
 end, { bang = true, desc = "Cerrar nvim por completo (:Q! fuerza)" })
+
+-- ponytail: Warp no soporta el kitty graphics protocol, así que snacks.image no puede
+-- pintar nada. Fallback: abrir la imagen en Quick Look (espacio para cerrar) y descartar
+-- el buffer binario. En Ghostty/kitty/wezterm no aplica: ahí snacks la renderiza inline.
+vim.api.nvim_create_autocmd("BufReadCmd", {
+  pattern = { "*.png", "*.jpg", "*.jpeg", "*.gif", "*.webp", "*.bmp", "*.heic", "*.avif" },
+  callback = function(ev)
+    if vim.env.TERM_PROGRAM ~= "WarpTerminal" then return false end
+    vim.system({ "qlmanage", "-p", ev.match }, { stderr = false, stdout = false })
+    vim.schedule(function()
+      vim.api.nvim_buf_delete(ev.buf, { force = true })
+      vim.notify("Quick Look: " .. vim.fn.fnamemodify(ev.match, ":t"))
+    end)
+  end,
+})

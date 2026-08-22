@@ -28,6 +28,7 @@ Theme is **Kanagawa Dragon** (warm, desaturated ink palette) with a **transparen
 | **Node.js** | `ts_ls`, `eslint`, `prettier` |
 | **Karabiner-Elements** (macOS) | optional — only for the `Ctrl+[` remap |
 | **translate-shell** (`trans`) | inline translator — `brew install translate-shell` |
+| **ImageMagick** (`magick`) | image preview via `snacks.image` — `brew install imagemagick` |
 
 Language servers (`lua_ls`, `ts_ls`, `pyright`, `rust_analyzer`, `eslint`) and tools (`stylua`, `prettier`, `ruff`) are installed automatically by **Mason** on first launch.
 
@@ -199,6 +200,19 @@ Setup:
 3. The `<F13>` → `<C-w>W` map is already in `lua/config.lua`.
 
 > Caveat: at the OS level Karabiner can't distinguish nvim from the shell, so inside those terminals `Ctrl+[` no longer sends `Esc` at the shell prompt (only matters for shell vi-mode).
+
+### Other Karabiner rules on this machine
+
+This isn't the only rule in `~/.config/karabiner/karabiner.json`. Holding **`Caps Lock`** peeks the
+Stage Manager strip (`⌥` during the hold swaps to the Dock, `Tab` brings the cursor back), and
+`Cmd/Ctrl+Shift+[` → F16 inside Obsidian. All of them share that one file, so when you hand-edit it:
+lint with `karabiner_cli --lint-complex-modifications` before injecting, and never
+`launchctl kickstart -k` the agent — quit it from the menu bar icon instead.
+
+Setup, gesture table and the reasoning behind the peek:
+[`~/pr26/workflows/stage-manager-peek/`](../workflows/README.md). One rule from there is worth
+repeating anywhere Karabiner comes up: **`fn` must never be remapped on this Mac** — it hung the
+whole machine and needed a forced shutdown.
 
 ---
 
