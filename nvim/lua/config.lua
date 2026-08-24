@@ -233,11 +233,6 @@ vim.api.nvim_create_autocmd("QuitPre", {
   end,
 })
 
--- :Q cierra nvim por completo (qall). :Q! fuerza (descarta cambios sin guardar).
--- Útil porque en modo `nvim .` un :q normal vuelve al explorador en vez de salir.
-vim.api.nvim_create_user_command("Q", function(o)
-  vim.cmd("qa" .. (o.bang and "!" or ""))
-end, { bang = true, desc = "Cerrar nvim por completo (:Q! fuerza)" })
 
 -- ponytail: Warp no soporta el kitty graphics protocol, así que snacks.image no puede
 -- pintar nada. Fallback: abrir la imagen en Quick Look (espacio para cerrar) y descartar
