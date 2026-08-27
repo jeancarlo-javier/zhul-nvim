@@ -87,6 +87,9 @@ opt.inccommand = "split"    -- vista previa en vivo de :substitute
 opt.updatetime = 250        -- diagnósticos / gitsigns más ágiles
 opt.timeoutlen = 400        -- ventana para atajos compuestos (which-key)
 opt.completeopt = "menu,menuone,noselect"
+-- diff siempre en vertical (side-by-side) y con mejor detección de cambios
+-- (linematch ya viene por defecto en 0.11)
+opt.diffopt:append({ "vertical", "algorithm:histogram", "indent-heuristic" })
 
 -- Search settings
 opt.hlsearch = false

@@ -25,6 +25,8 @@ return {
       spec = {
         { "<leader>m", group = "mover líneas" }, -- <space>m + j/k (con N opcional)
         { "<leader>l", group = "líneas" },       -- <space>ll = toggle wrap
+        { "<leader>g", group = "git / diffs" },   -- <space>g + d/D/h/H/s/c/b/q
+        { "<leader>h", group = "git hunks" },     -- <space>h + s/r/p/b/d... (gitsigns)
       },
     },
   },

@@ -16,6 +16,9 @@ return {
       { "<leader>fd", "<cmd>Telescope diagnostics<cr>", desc = "Diagnostics" },
       { "<leader>fr", "<cmd>Telescope resume<cr>", desc = "Resume last search" },
       { "<leader>fo", "<cmd>Telescope oldfiles<cr>", desc = "Recent files" },
+      { "<leader>gs", "<cmd>Telescope git_status<cr>", desc = "Git: archivos modificados" },
+      { "<leader>gc", "<cmd>Telescope git_commits<cr>", desc = "Git: commits del repo" },
+      { "<leader>gb", "<cmd>Telescope git_bcommits<cr>", desc = "Git: commits de este archivo" },
     },
     opts = {},
   },
@@ -124,7 +127,40 @@ return {
         map("<leader>hp", gs.preview_hunk, "Git: preview hunk")
         map("<leader>hb", function() gs.blame_line({ full = true }) end, "Git: blame línea")
         map("<leader>hd", gs.diffthis, "Git: diff del archivo")
+        map("<leader>hu", gs.undo_stage_hunk, "Git: deshacer stage del hunk")
+        map("<leader>hR", gs.reset_buffer, "Git: reset del archivo entero")
+        map("<leader>hB", gs.toggle_current_line_blame, "Git: blame inline (toggle)")
+        map("<leader>hD", gs.toggle_deleted, "Git: mostrar líneas borradas")
+        -- stage/reset por selección visual
+        vim.keymap.set("v", "<leader>hs", function() gs.stage_hunk({ vim.fn.line("."), vim.fn.line("v") }) end,
+          { buffer = bufnr, desc = "Git: stage selección" })
+        vim.keymap.set("v", "<leader>hr", function() gs.reset_hunk({ vim.fn.line("."), vim.fn.line("v") }) end,
+          { buffer = bufnr, desc = "Git: reset selección" })
       end,
+    },
+  },
+
+  -- Diffs visuales side-by-side + historial (usa el :diff nativo, con panel de archivos)
+  {
+    "sindrets/diffview.nvim",
+    cmd = { "DiffviewOpen", "DiffviewFileHistory", "DiffviewClose" },
+    opts = {
+      enhanced_diff_hl = true, -- resalta la palabra que cambió, no solo la línea
+      view = {
+        merge_tool = { layout = "diff3_mixed" }, -- en conflictos: local | base+resultado | remoto
+      },
+    },
+    keys = {
+      { "<leader>gd", "<cmd>DiffviewOpen<cr>", desc = "Diff: cambios sin commitear" },
+      { "<leader>gD", function()
+          vim.ui.input({ prompt = "Diff contra (rama/commit): ", default = "main" }, function(ref)
+            if ref and ref ~= "" then vim.cmd("DiffviewOpen " .. ref .. "...HEAD") end
+          end)
+        end, desc = "Diff: contra otra rama" },
+      { "<leader>gh", "<cmd>DiffviewFileHistory %<cr>", desc = "Diff: historial de este archivo" },
+      { "<leader>gh", "<cmd>'<,'>DiffviewFileHistory<cr>", mode = "v", desc = "Diff: historial de la selección" },
+      { "<leader>gH", "<cmd>DiffviewFileHistory<cr>", desc = "Diff: historial del repo" },
+      { "<leader>gq", "<cmd>DiffviewClose<cr>", desc = "Diff: cerrar" },
     },
   },
 
