@@ -49,12 +49,8 @@ return {
     event = { "BufWritePre" },
     cmd = { "ConformInfo" },
     keys = {
-      {
-        "<leader>cf",
-        function() require("conform").format({ async = true, lsp_format = "fallback" }) end,
-        mode = { "n", "v" },
-        desc = "Format buffer",
-      },
+      -- ponytail: no hay atajo de "formatear a mano": format_on_save ya lo hace al guardar.
+      -- Si lo apagas con <leader>uf y necesitas formatear puntualmente: :lua require("conform").format()
       {
         "<leader>uf",
         function()
@@ -150,7 +146,8 @@ return {
           map("gD", vim.lsp.buf.declaration, "Go to declaration")
           map("<leader>ds", tb.lsp_document_symbols, "Document symbols")
           map("<leader>rn", vim.lsp.buf.rename, "Rename")
-          vim.keymap.set({ "n", "v" }, "<leader>ca", vim.lsp.buf.code_action,
+          -- <leader>a = "action" (antes <leader>ca; <leader>c es ahora "copiar ruta")
+          vim.keymap.set({ "n", "v" }, "<leader>a", vim.lsp.buf.code_action,
             { buffer = ev.buf, desc = "LSP: Code action" })
         end,
       })

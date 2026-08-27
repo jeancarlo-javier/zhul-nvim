@@ -27,6 +27,7 @@ return {
         { "<leader>l", group = "líneas" },       -- <space>ll = toggle wrap
         { "<leader>g", group = "git / diffs" },   -- <space>g + d/D/h/H/s/c/b/q
         { "<leader>h", group = "git hunks" },     -- <space>h + s/r/p/b/d... (gitsigns)
+        { "<leader>c", group = "copiar ruta" },   -- <space>c + r/a/n
       },
     },
   },

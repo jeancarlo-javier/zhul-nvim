@@ -108,6 +108,18 @@ end, { desc = "Toggle números: absoluto/híbrido" })
 
 -- Essential keymaps
 keymap.set("i", "jk", "<ESC>", { desc = "Exit insert mode with jk" })
+
+-- Copiar la ruta del archivo abierto al portapapeles.
+-- `:.` = relativa al cwd, `:p` = absoluta, `:t` = solo el nombre.
+-- En la barra lateral estos mismos atajos apuntan al nodo bajo el cursor (ver editor.lua).
+for key, mod in pairs({ r = ":.", a = ":p", n = ":t" }) do
+  keymap.set("n", "<leader>c" .. key, function()
+    local path = vim.fn.expand("%" .. mod)
+    if path == "" then return vim.notify("Este buffer no tiene archivo", vim.log.levels.WARN) end
+    vim.fn.setreg("+", path)
+    vim.notify("Copiado: " .. path)
+  end, { desc = "Copiar ruta (" .. ({ r = "relativa", a = "absoluta", n = "nombre" })[key] .. ")" })
+end
 -- Copiar selección visual al portapapeles del sistema con ⌘C.
 keymap.set("x", "<D-c>", '"+y', { desc = "Copiar selección al portapapeles" })
 

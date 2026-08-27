@@ -96,6 +96,22 @@ return {
         end
 
         local o = { buffer = bufnr, noremap = true, silent = true, nowait = true }
+
+        -- Copiar rutas del nodo bajo el cursor. `c` pasa a ser prefijo, así que
+        -- copiar-archivo (que era `c`) se mueve a `cc`. Los defaults y/Y/gy siguen vivos.
+        vim.keymap.del("n", "c", { buffer = bufnr }) -- el default trae nowait: mataría `cr`/`ca`
+        local copy = {
+          c = { api.fs.copy.node, "Copiar archivo (para pegar con p)" },
+          r = { api.fs.copy.relative_path, "Copiar ruta relativa" },
+          a = { api.fs.copy.absolute_path, "Copiar ruta absoluta" },
+          n = { api.fs.copy.filename, "Copiar nombre del archivo" },
+        }
+        for key, spec in pairs(copy) do
+          local opts = vim.tbl_extend("force", o, { nowait = false, desc = spec[2] })
+          vim.keymap.set("n", "c" .. key, spec[1], opts)
+          vim.keymap.set("n", "<leader>c" .. key, spec[1], opts) -- mismo atajo que en un archivo
+        end
+
         vim.keymap.set("n", "}", function() jump_open_dir("next") end, vim.tbl_extend("force", o, { desc = "Next open folder" }))
         vim.keymap.set("n", "{", function() jump_open_dir("prev") end, vim.tbl_extend("force", o, { desc = "Prev open folder" }))
       end,
