@@ -120,34 +120,44 @@ return {
         --   archivo -> lo pinta en el editor pero el foco SE QUEDA en el árbol
         --              (preview), para poder seguir paseando por la lista.
         -- Doble clic en un archivo -> lo abre de verdad y salta a él.
-        vim.keymap.set("n", "<LeftRelease>", function()
+        --
+        -- Por qué mapeamos también <LeftMouse> (el press), que parece innecesario:
+        -- un doble clic emite <LeftMouse> <LeftRelease> <2-LeftMouse> <LeftRelease>,
+        -- pero ese release final NO pasa por los mapeos. El press por defecto es
+        -- quien lleva la cuenta de clics, y al llegar ese release suelto Neovim lo
+        -- resuelve como "seleccionar palabra" -> te quedabas en modo VISUAL (y con
+        -- which-key abierto) tras cada doble clic. Reemplazando el press por un
+        -- posicionamiento manual esa máquina de estados nunca arranca: no hay
+        -- visual y el cuarto evento ni se emite.
+        -- Precio: perdemos arrastrar-para-seleccionar iniciado desde la ventana del
+        -- árbol. En el árbol no sirve de nada; empezar el drag ya dentro del código
+        -- (que es lo normal) sigue funcionando igual.
+        vim.keymap.set({ "n", "x" }, "<LeftMouse>", function()
+          local pos = vim.fn.getmousepos()
+          if pos.winid == 0 or not vim.api.nvim_win_is_valid(pos.winid) then return end
+          if pos.line < 1 then return end -- clic en winbar/statusline, no en texto
+          local buf = vim.api.nvim_win_get_buf(pos.winid)
+          if pos.line > vim.api.nvim_buf_line_count(buf) then return end
+          local text = vim.api.nvim_buf_get_lines(buf, pos.line - 1, pos.line, false)[1] or ""
+          vim.api.nvim_set_current_win(pos.winid)
+          vim.api.nvim_win_set_cursor(pos.winid, { pos.line, math.min(math.max(pos.column - 1, 0), #text) })
+        end, vim.tbl_extend("force", o, { desc = "Clic: mover el cursor" }))
+
+        local function click_open(double)
           local ok, node = pcall(api.tree.get_node_under_cursor)
           if not ok or not node then return end
           if node.type == "directory" then
-            api.node.open.edit()
+            -- en el doble clic la carpeta ya la abrió/cerró el primer clic
+            if not double then api.node.open.edit() end
           elseif node.type == "file" then
-            api.node.open.preview()
+            if double then api.node.open.edit() else api.node.open.preview() end
           end
-        end, vim.tbl_extend("force", o, { desc = "Clic: abrir carpeta / preview archivo" }))
+        end
 
-        -- El doble clic dispara <LeftRelease> ADEMÁS de <2-LeftMouse>: sobre una
-        -- carpeta el default (edit) la volvería a cerrar (toggle x2 = nada), así
-        -- que aquí el doble clic solo actúa sobre archivos.
-        -- El salto va en vim.schedule a propósito: Neovim selecciona la palabra
-        -- (entra en VISUAL) en la capa de input, ANTES de resolver este mapeo, y
-        -- suelta un <LeftRelease> final. Si cambiamos de ventana aquí mismo, ese
-        -- release cae en el buffer nuevo y te deja atrapado en modo VISUAL.
-        -- Difiriendo, el release se consume en el árbol y salimos limpios.
-        vim.keymap.set("n", "<2-LeftMouse>", function()
-          local ok, node = pcall(api.tree.get_node_under_cursor)
-          if not ok or not node or node.type ~= "file" then return end
-          vim.schedule(function()
-            if vim.fn.mode():match("[vV\22]") then
-              vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
-            end
-            api.node.open.edit()
-          end)
-        end, vim.tbl_extend("force", o, { desc = "Doble clic: abrir archivo y enfocarlo" }))
+        vim.keymap.set({ "n", "x" }, "<LeftRelease>", function() click_open(false) end,
+          vim.tbl_extend("force", o, { desc = "Clic: abrir carpeta / preview archivo" }))
+        vim.keymap.set({ "n", "x" }, "<2-LeftMouse>", function() click_open(true) end,
+          vim.tbl_extend("force", o, { desc = "Doble clic: abrir archivo y enfocarlo" }))
       end,
     },
   },
