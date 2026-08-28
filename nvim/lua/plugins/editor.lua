@@ -121,17 +121,12 @@ return {
         --              (preview), para poder seguir paseando por la lista.
         -- Doble clic en un archivo -> lo abre de verdad y salta a él.
         --
-        -- Por qué mapeamos también <LeftMouse> (el press), que parece innecesario:
-        -- un doble clic emite <LeftMouse> <LeftRelease> <2-LeftMouse> <LeftRelease>,
-        -- pero ese release final NO pasa por los mapeos. El press por defecto es
-        -- quien lleva la cuenta de clics, y al llegar ese release suelto Neovim lo
-        -- resuelve como "seleccionar palabra" -> te quedabas en modo VISUAL (y con
-        -- which-key abierto) tras cada doble clic. Reemplazando el press por un
-        -- posicionamiento manual esa máquina de estados nunca arranca: no hay
-        -- visual y el cuarto evento ni se emite.
-        -- Precio: perdemos arrastrar-para-seleccionar iniciado desde la ventana del
-        -- árbol. En el árbol no sirve de nada; empezar el drag ya dentro del código
-        -- (que es lo normal) sigue funcionando igual.
+        -- <LeftMouse> (el press) se mapea para posicionar el cursor a mano en vez
+        -- de dejar el comportamiento por defecto: así un micro-movimiento del ratón
+        -- mientras haces clic no arranca una selección por arrastre (parpadeo de
+        -- modo VISUAL en el árbol). Precio: no se puede arrastrar-para-seleccionar
+        -- empezando dentro del árbol, donde de todas formas no sirve de nada;
+        -- empezar el arrastre ya dentro del código sigue funcionando igual.
         vim.keymap.set({ "n", "x" }, "<LeftMouse>", function()
           local pos = vim.fn.getmousepos()
           if pos.winid == 0 or not vim.api.nvim_win_is_valid(pos.winid) then return end
@@ -143,28 +138,6 @@ return {
           vim.api.nvim_win_set_cursor(pos.winid, { pos.line, math.min(math.max(pos.column - 1, 0), #text) })
         end, vim.tbl_extend("force", o, { desc = "Clic: mover el cursor" }))
 
-        -- Abrir el archivo y saltar a él. El doble clic termina con un evento de
-        -- ratón que Neovim NO entrega a los mapeos, y para entonces ya cambiamos de
-        -- ventana: cae en el archivo recién abierto y lo interpreta como arrastre,
-        -- dejándote en modo VISUAL (con which-key abriendo su panel encima). Como
-        -- el evento no se puede interceptar, se deshace el efecto: si el modo salta
-        -- a visual justo después de abrir, salimos. Los 300 ms solo desarman la
-        -- guarda: entrar en visual a mano un momento después sigue funcionando.
-        local function open_and_focus()
-          api.node.open.edit()
-          local guard
-          guard = vim.api.nvim_create_autocmd("ModeChanged", {
-            callback = function()
-              if not vim.fn.mode():match("^[vV\22]") then return end
-              vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "n", false)
-              -- sin desarmar aquí a propósito: un doble clic real suelta varios
-              -- eventos de arrastre (temblor de mano) y cada uno vuelve a entrar
-              -- en visual. Solo el temporizador de abajo quita la guarda.
-            end,
-          })
-          vim.defer_fn(function() pcall(vim.api.nvim_del_autocmd, guard) end, 300)
-        end
-
         local function click_open(double)
           local ok, node = pcall(api.tree.get_node_under_cursor)
           if not ok or not node then return end
@@ -172,13 +145,25 @@ return {
             -- en el doble clic la carpeta ya la abrió/cerró el primer clic
             if not double then api.node.open.edit() end
           elseif node.type == "file" then
-            if double then open_and_focus() else api.node.open.preview() end
+            if double then api.node.open.edit() else api.node.open.preview() end
           end
         end
 
         vim.keymap.set({ "n", "x" }, "<LeftRelease>", function() click_open(false) end,
           vim.tbl_extend("force", o, { desc = "Clic: abrir carpeta / preview archivo" }))
-        vim.keymap.set({ "n", "x" }, "<2-LeftMouse>", function() click_open(true) end,
+
+        -- Un doble clic emite CUATRO eventos:
+        --   <LeftMouse> <LeftRelease> <2-LeftMouse> <2-LeftRelease>
+        -- El salto de ventana va en el ÚLTIMO. Si se hace en <2-LeftMouse>, el
+        -- <2-LeftRelease> que viene detrás cae en el archivo recién abierto, donde
+        -- Neovim lo resuelve como "terminar de seleccionar la palabra": te quedabas
+        -- en modo VISUAL y which-key abría su panel encima. Haciéndolo en el
+        -- release ya no queda ningún evento suelto que pueda aterrizar en el
+        -- destino. <2-LeftMouse> se mapea a nada justo para eso: para que no
+        -- seleccione nada dentro del árbol mientras tanto.
+        vim.keymap.set({ "n", "x" }, "<2-LeftMouse>", function() end,
+          vim.tbl_extend("force", o, { desc = "Doble clic (el trabajo va en el release)" }))
+        vim.keymap.set({ "n", "x" }, "<2-LeftRelease>", function() click_open(true) end,
           vim.tbl_extend("force", o, { desc = "Doble clic: abrir archivo y enfocarlo" }))
       end,
     },
