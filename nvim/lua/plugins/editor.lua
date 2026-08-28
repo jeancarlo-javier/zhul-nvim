@@ -134,8 +134,17 @@ return {
           local buf = vim.api.nvim_win_get_buf(pos.winid)
           if pos.line > vim.api.nvim_buf_line_count(buf) then return end
           local text = vim.api.nvim_buf_get_lines(buf, pos.line - 1, pos.line, false)[1] or ""
-          vim.api.nvim_set_current_win(pos.winid)
-          vim.api.nvim_win_set_cursor(pos.winid, { pos.line, math.min(math.max(pos.column - 1, 0), #text) })
+          -- El cursor PRIMERO y el foco después: entrar en una ventana dispara
+          -- autocmds que pueden cerrarla (un float de notificación se cierra al
+          -- perder el foco), y para cuando volvíamos a usar su id ya no existía
+          -- -> E5108 "Invalid window id". Y pcall porque esto corre en CADA clic:
+          -- si la ventana se esfumó, saltarse el movimiento es mejor que soltarle
+          -- un error al usuario encima.
+          pcall(vim.api.nvim_win_set_cursor, pos.winid,
+            { pos.line, math.min(math.max(pos.column - 1, 0), #text) })
+          if vim.api.nvim_win_is_valid(pos.winid) then
+            pcall(vim.api.nvim_set_current_win, pos.winid)
+          end
         end, vim.tbl_extend("force", o, { desc = "Clic: mover el cursor" }))
 
         local function click_open(double)
