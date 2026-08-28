@@ -133,9 +133,20 @@ return {
         -- El doble clic dispara <LeftRelease> ADEMÁS de <2-LeftMouse>: sobre una
         -- carpeta el default (edit) la volvería a cerrar (toggle x2 = nada), así
         -- que aquí el doble clic solo actúa sobre archivos.
+        -- El salto va en vim.schedule a propósito: Neovim selecciona la palabra
+        -- (entra en VISUAL) en la capa de input, ANTES de resolver este mapeo, y
+        -- suelta un <LeftRelease> final. Si cambiamos de ventana aquí mismo, ese
+        -- release cae en el buffer nuevo y te deja atrapado en modo VISUAL.
+        -- Difiriendo, el release se consume en el árbol y salimos limpios.
         vim.keymap.set("n", "<2-LeftMouse>", function()
           local ok, node = pcall(api.tree.get_node_under_cursor)
-          if ok and node and node.type == "file" then api.node.open.edit() end
+          if not ok or not node or node.type ~= "file" then return end
+          vim.schedule(function()
+            if vim.fn.mode():match("[vV\22]") then
+              vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
+            end
+            api.node.open.edit()
+          end)
         end, vim.tbl_extend("force", o, { desc = "Doble clic: abrir archivo y enfocarlo" }))
       end,
     },
