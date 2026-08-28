@@ -143,6 +143,26 @@ return {
           vim.api.nvim_win_set_cursor(pos.winid, { pos.line, math.min(math.max(pos.column - 1, 0), #text) })
         end, vim.tbl_extend("force", o, { desc = "Clic: mover el cursor" }))
 
+        -- Abrir el archivo y saltar a él. El doble clic termina con un evento de
+        -- ratón que Neovim NO entrega a los mapeos, y para entonces ya cambiamos de
+        -- ventana: cae en el archivo recién abierto y lo interpreta como arrastre,
+        -- dejándote en modo VISUAL (con which-key abriendo su panel encima). Como
+        -- el evento no se puede interceptar, se deshace el efecto: si el modo salta
+        -- a visual justo después de abrir, salimos. Los 300 ms solo desarman la
+        -- guarda: entrar en visual a mano un momento después sigue funcionando.
+        local function open_and_focus()
+          api.node.open.edit()
+          local guard
+          guard = vim.api.nvim_create_autocmd("ModeChanged", {
+            callback = function()
+              if not vim.fn.mode():match("^[vV\22]") then return end -- seguimos armados
+              vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "n", false)
+              return true -- desarmar
+            end,
+          })
+          vim.defer_fn(function() pcall(vim.api.nvim_del_autocmd, guard) end, 300)
+        end
+
         local function click_open(double)
           local ok, node = pcall(api.tree.get_node_under_cursor)
           if not ok or not node then return end
@@ -150,7 +170,7 @@ return {
             -- en el doble clic la carpeta ya la abrió/cerró el primer clic
             if not double then api.node.open.edit() end
           elseif node.type == "file" then
-            if double then api.node.open.edit() else api.node.open.preview() end
+            if double then open_and_focus() else api.node.open.preview() end
           end
         end
 
