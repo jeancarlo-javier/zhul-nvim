@@ -155,9 +155,11 @@ return {
           local guard
           guard = vim.api.nvim_create_autocmd("ModeChanged", {
             callback = function()
-              if not vim.fn.mode():match("^[vV\22]") then return end -- seguimos armados
+              if not vim.fn.mode():match("^[vV\22]") then return end
               vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "n", false)
-              return true -- desarmar
+              -- sin desarmar aquí a propósito: un doble clic real suelta varios
+              -- eventos de arrastre (temblor de mano) y cada uno vuelve a entrar
+              -- en visual. Solo el temporizador de abajo quita la guarda.
             end,
           })
           vim.defer_fn(function() pcall(vim.api.nvim_del_autocmd, guard) end, 300)
