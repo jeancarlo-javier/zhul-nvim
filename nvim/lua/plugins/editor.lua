@@ -114,6 +114,29 @@ return {
 
         vim.keymap.set("n", "}", function() jump_open_dir("next") end, vim.tbl_extend("force", o, { desc = "Next open folder" }))
         vim.keymap.set("n", "{", function() jump_open_dir("prev") end, vim.tbl_extend("force", o, { desc = "Prev open folder" }))
+
+        -- Ratón tipo VSCode. Un solo clic:
+        --   carpeta -> la abre/cierra
+        --   archivo -> lo pinta en el editor pero el foco SE QUEDA en el árbol
+        --              (preview), para poder seguir paseando por la lista.
+        -- Doble clic en un archivo -> lo abre de verdad y salta a él.
+        vim.keymap.set("n", "<LeftRelease>", function()
+          local ok, node = pcall(api.tree.get_node_under_cursor)
+          if not ok or not node then return end
+          if node.type == "directory" then
+            api.node.open.edit()
+          elseif node.type == "file" then
+            api.node.open.preview()
+          end
+        end, vim.tbl_extend("force", o, { desc = "Clic: abrir carpeta / preview archivo" }))
+
+        -- El doble clic dispara <LeftRelease> ADEMÁS de <2-LeftMouse>: sobre una
+        -- carpeta el default (edit) la volvería a cerrar (toggle x2 = nada), así
+        -- que aquí el doble clic solo actúa sobre archivos.
+        vim.keymap.set("n", "<2-LeftMouse>", function()
+          local ok, node = pcall(api.tree.get_node_under_cursor)
+          if ok and node and node.type == "file" then api.node.open.edit() end
+        end, vim.tbl_extend("force", o, { desc = "Doble clic: abrir archivo y enfocarlo" }))
       end,
     },
   },
