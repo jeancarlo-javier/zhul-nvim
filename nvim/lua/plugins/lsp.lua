@@ -74,6 +74,7 @@ return {
         jsonc = { "prettier" },
         yaml = { "prettier" },
         markdown = { "prettier" },
+        swift = { "swift" }, -- `swift format` (Swift 6+), viene con Xcode
       },
       format_on_save = function(bufnr)
         if vim.g.disable_autoformat or vim.b[bufnr].disable_autoformat then
@@ -108,6 +109,12 @@ return {
       vim.lsp.config("lua_ls", {
         settings = { Lua = { workspace = { checkThirdParty = false } } },
       })
+
+      -- sourcekit-lsp lo trae Xcode (/usr/bin/sourcekit-lsp), Mason no lo instala:
+      -- va fuera de mason-lspconfig, encendido a mano. Limitado a Swift/ObjC para
+      -- que no se enganche a cualquier .c dentro de un repo git.
+      vim.lsp.config("sourcekit", { filetypes = { "swift", "objc", "objcpp" } })
+      vim.lsp.enable("sourcekit")
 
       -- mason-lspconfig 2.x: con automatic_enable (default) llama a
       -- vim.lsp.enable() por cada server instalado. Sin loop manual.

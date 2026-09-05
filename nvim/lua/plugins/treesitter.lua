@@ -48,6 +48,7 @@ return {
         "python", "rust", "javascript", "typescript", "tsx",
         "html", "css", "json", "jsonc", "yaml",
         "markdown", "markdown_inline", "bash",
+        "swift",
       },
       auto_install = true,
       highlight = { enable = true },
