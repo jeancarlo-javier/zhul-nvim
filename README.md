@@ -40,6 +40,8 @@ Language servers (`lua_ls`, `ts_ls`, `pyright`, `rust_analyzer`, `eslint`) and t
 zhul-nvim/
 ├── README.md
 ├── install.sh                 # symlinks nvim/ into place (backs up any existing config)
+├── omp/
+│   └── nvim-selection.ts       # omp extension: /ide follows the nvim selection (file-based)
 ├── nvim/                       # ← ~/.config/nvim is a symlink to this
 │   ├── init.lua                # entry: config → lazy → plugins → diagnostics → winbar
 │   ├── lazy-lock.json          # pinned plugin versions (reproducible installs)
@@ -129,7 +131,7 @@ Leader = `Space`.
 ### Claude Code bridge (`lua/plugins/claude.lua`)
 | Key | Action |
 |-----|--------|
-| `/ide` (in Claude, not nvim) | That Claude session starts following the nvim selection |
+| `/ide` (in Claude or omp, not nvim) | That session starts following the nvim selection |
 | `<leader>cs` (visual) | Send the selection into the Claude prompt as an `@file#L1-L9` mention |
 | `<leader>ca` / `<leader>cx` | Accept / reject the diff Claude opened in nvim (only without bypass permissions) |
 
@@ -255,6 +257,19 @@ PORT=$(ls ~/.claude/ide | sed 's/.lock//'); lsof -nP -iTCP:$PORT   # LISTEN nvim
 ```
 
 Then in Claude, after selecting: "Quote exactly the text currently selected in my editor."
+
+### omp
+
+omp does not speak Claude's IDE protocol, so `omp/nvim-selection.ts` (linked into
+`~/.omp/agent/extensions/` by `install.sh`) reproduces the same UX over a file:
+
+- `claude.lua` wraps `send_selection_update` so every selection nvim broadcasts is also written
+  to `~/.omp/run/nvim-selection/<cwd with / as %>.json` (removed when nvim exits).
+- `/ide` in omp toggles following for that session, same opt-in as Claude. It looks for a
+  file matching omp's cwd or any parent folder, shows `⧉ N lines selected` in the status line
+  (refreshed via `fs.watch`), and on each prompt attaches the text as a hidden
+  `selected_lines_in_ide` message, the same wording Claude uses.
+- Self-check: `bun omp/nvim-selection.check.ts`.
 
 ### Migrating from the old auto-connect setup
 

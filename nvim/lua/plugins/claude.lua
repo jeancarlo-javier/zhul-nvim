@@ -43,11 +43,35 @@ local function patch_resend_on_connect()
   end
 end
 
+-- omp no habla el protocolo IDE de Claude: su extensión (../../omp/nvim-selection.ts)
+-- lee la última selección de un fichero por cwd. Envolvemos send_selection_update
+-- para que cada emisión al WebSocket también se escriba ahí.
+local function selection_file()
+  return vim.fn.expand("~") .. "/.omp/run/nvim-selection/" .. vim.fn.getcwd():gsub("/", "%%") .. ".json"
+end
+
+local function patch_write_selection_file()
+  local selection = require("claudecode.selection")
+  if selection._file_patched then
+    return
+  end
+  selection._file_patched = true
+  local orig = selection.send_selection_update
+  selection.send_selection_update = function(sel)
+    orig(sel)
+    local f = selection_file()
+    vim.fn.mkdir(vim.fn.fnamemodify(f, ":h"), "p")
+    vim.fn.writefile({ vim.json.encode({ cwd = vim.fn.getcwd(), filePath = sel.filePath, text = sel.text, selection = sel.selection }) }, f)
+  end
+  vim.api.nvim_create_autocmd("VimLeavePre", { callback = function() os.remove(selection_file()) end })
+end
+
 local title = { title = "Claude Code" }
 
 local function start_bridge()
   local cc = require("claudecode")
   patch_resend_on_connect()
+  patch_write_selection_file()
 
   local ok, port_or_err = cc.start(false)
   if not ok then
@@ -61,7 +85,7 @@ local function start_bridge()
     return
   end
 
-  vim.notify(("Claude Bridge listo en :%d — en Claude: /ide para seguir la selección"):format(port_or_err), vim.log.levels.INFO, title)
+  vim.notify(("Claude Bridge listo en :%d — /ide en Claude u omp para seguir la selección"):format(port_or_err), vim.log.levels.INFO, title)
 end
 
 

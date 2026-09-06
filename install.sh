@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Restore zhul-nvim onto this machine.
 # - Copies nvim/ -> ~/.config/nvim (backing up any existing config first)
+# - Links omp/nvim-selection.ts into ~/.omp/agent/extensions (if omp is installed)
 # - Installs the Karabiner Ctrl+[ -> F13 rule (macOS, optional)
 set -euo pipefail
 
@@ -21,6 +22,13 @@ else
   fi
   ln -s "$HERE/nvim" "$NVIM_DST"
   echo "    done."
+fi
+
+# omp extension: follow the nvim selection with /ide (see README "Claude Code bridge")
+if [ -d "$HOME/.omp/agent" ]; then
+  echo "==> Linking omp extension: ~/.omp/agent/extensions/nvim-selection.ts"
+  mkdir -p "$HOME/.omp/agent/extensions"
+  ln -sfn "$HERE/omp/nvim-selection.ts" "$HOME/.omp/agent/extensions/nvim-selection.ts"
 fi
 
 if [ "$(uname)" = "Darwin" ]; then
