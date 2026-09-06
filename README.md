@@ -240,6 +240,9 @@ notification are built into the Claude binary. The whole feature is this one plu
 - **nvim in a parent folder** also shows up in `/ide` of a `cs` in a subfolder — the filter is
   "Claude cwd inside `workspaceFolders`", not equality.
 - **Restarting nvim** changes the port: the Claude session is orphaned until another `/ide`.
+- **Other `CLAUDE_CONFIG_DIR`s** (`ce` = `~/.claude-eventrid`) scan `<config-dir>/ide/`, while nvim
+  always writes to `~/.claude/ide/`. One symlink per config dir and `/ide` works there too:
+  `ln -s ~/.claude/ide ~/.claude-eventrid/ide`
 - **Diff review in nvim** (`<leader>ca` / `<leader>cx`) only happens when Claude runs without
   `--dangerously-skip-permissions`; the `cs` launcher uses bypass, so edits apply directly.
   Try it once with plain `claude` + `/ide`.
