@@ -48,6 +48,7 @@ zhul-nvim/
 │       ├── translate.lua       # inline translator (translate-shell float)
 │       ├── winbar.lua          # custom per-window file header
 │       └── plugins/
+│           ├── claude.lua      # Claude Code bridge: live selection -> `cs` via /ide
 │           ├── colorscheme.lua # kanagawa dragon, transparent
 │           ├── editor.lua      # telescope, nvim-tree, gitsigns, flash, trouble, mini
 │           ├── lsp.lua         # mason, lspconfig, blink.cmp, conform, lazydev
@@ -125,6 +126,13 @@ Leader = `Space`.
 | `<leader>ds` | Document symbols |
 | `<leader>cf` / `<leader>uf` | Format buffer / toggle format-on-save |
 
+### Claude Code bridge (`lua/plugins/claude.lua`)
+| Key | Action |
+|-----|--------|
+| `/ide` (in Claude, not nvim) | That Claude session starts following the nvim selection |
+| `<leader>cs` (visual) | Send the selection into the Claude prompt as an `@file#L1-L9` mention |
+| `<leader>ca` / `<leader>cx` | Accept / reject the diff Claude opened in nvim (only without bypass permissions) |
+
 ### Git (gitsigns) · Jumps · Diagnostics · Surround
 | Key | Action |
 |-----|--------|
@@ -175,8 +183,84 @@ Look up a word without leaving your editor. Result appears in a rounded float an
 | `folke/which-key.nvim` | Keymap hints |
 | `folke/snacks.nvim` | bigfile, indent, notifier, statuscolumn, scope, input |
 | `folke/todo-comments.nvim` | TODO/FIX/HACK highlighting |
+| `coder/claudecode.nvim` | MCP bridge so Claude Code CLI sees the live selection (see below) |
 
 Exact commits are pinned in `nvim/lazy-lock.json` — run `:Lazy restore` to match them.
+
+---
+
+## 🤖 Claude Code bridge (live selection, like VS Code)
+
+What you select in nvim shows up in a Claude Code CLI session running in the same folder as
+`⧉ N lines selected`, and the model gets the text verbatim when you ask. Same mechanism as the
+official VS Code extension, reproduced with `coder/claudecode.nvim` in `lua/plugins/claude.lua`.
+
+**Model: nvim always broadcasts; each Claude session opts in with `/ide`.** No auto-connect, so
+two Claude sessions in the same folder never step on each other — only the one that ran `/ide`
+follows the selection.
+
+```
+nvim .        starts the WebSocket MCP server + writes ~/.claude/ide/<port>.lock   (automatic)
+cs            Claude does NOT connect on its own
+/ide          this session connects  ->  "Connected to Neovim."
+V / v ...     "⧉ N lines selected"  ->  the model sees the text
+```
+
+Nothing to install on the Claude side: `/ide`, the lockfile scan and the `selection_changed`
+notification are built into the Claude binary. The whole feature is this one plugin file.
+
+### How it works (reverse-engineered from the binary and VS Code's `extension.js`)
+
+1. **Discovery.** The editor writes `~/.claude/ide/<port>.lock` with
+   `{pid, workspaceFolders, ideName, transport:"ws", authToken}`. `/ide` reads every lockfile,
+   drops the ones whose `pid` is dead, and lists those whose `workspaceFolders` contain Claude's cwd.
+2. **Transport.** MCP over WebSocket on `127.0.0.1:<port>`, header
+   `X-Claude-Code-Ide-Authorization: <authToken>`.
+3. **Selection.** The editor sends the JSON-RPC notification `selection_changed`
+   `{text, filePath, fileUrl, selection:{start,end,isEmpty}}` to **every** connected client.
+   Claude stores it, paints the banner and attaches it to the next prompt as `selected_lines_in_ide`.
+
+### Decisions
+
+- **Opt-in per session, not auto-connect.** `autoConnectIde` / `CLAUDE_CODE_AUTO_CONNECT_IDE=1`
+  made every `cs` in the folder connect and all of them showed the banner, with no way to pick.
+  `/ide` is the native per-session opt-in; auto-connect only existed to dodge Claude's single
+  lockfile scan (first 30 s after launch), which stops mattering once `/ide` is the normal path.
+- **Server always up, tracking always on.** Claude never reconnects after a dropped WebSocket
+  (only `/ide` does), so the server starts with nvim and is never stopped.
+- **Re-send the selection on connect.** Claude resets its selection to empty every time the
+  `ide` MCP client identity changes. VS Code compensates by re-sending the current selection
+  500 ms after each connection; `claudecode.nvim` only sends on change. With `/ide` the connection
+  always arrives late, so `claude.lua` wraps `tcp.create_server` to chain that re-send in `on_connect`.
+  Without it the banner shows but the model says it has no access to the selection.
+
+### Gotchas
+
+- **One nvim per folder** while using Claude: `/ide` lists two identical "Neovim" entries.
+- **nvim in a parent folder** also shows up in `/ide` of a `cs` in a subfolder — the filter is
+  "Claude cwd inside `workspaceFolders`", not equality.
+- **Restarting nvim** changes the port: the Claude session is orphaned until another `/ide`.
+- **Diff review in nvim** (`<leader>ca` / `<leader>cx`) only happens when Claude runs without
+  `--dangerously-skip-permissions`; the `cs` launcher uses bypass, so edits apply directly.
+  Try it once with plain `claude` + `/ide`.
+
+### Verify
+
+```sh
+ls ~/.claude/ide/                                                  # one .lock with your nvim's pid
+PORT=$(ls ~/.claude/ide | sed 's/.lock//'); lsof -nP -iTCP:$PORT   # LISTEN nvim + ESTABLISHED claude (only the /ide ones)
+```
+
+Then in Claude, after selecting: "Quote exactly the text currently selected in my editor."
+
+### Migrating from the old auto-connect setup
+
+If a machine still carries the previous version, remove the two leftovers; nothing replaces them:
+
+```sh
+jq 'del(.autoConnectIde)' ~/.claude.json > /tmp/c && mv /tmp/c ~/.claude.json
+sed -i '' '/CLAUDE_CODE_AUTO_CONNECT_IDE/d' ~/.local/bin/cs
+```
 
 ---
 
