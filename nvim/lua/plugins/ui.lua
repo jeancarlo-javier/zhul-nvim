@@ -23,11 +23,16 @@ return {
     event = "VeryLazy",
     opts = {
       spec = {
-        { "<leader>m", group = "mover líneas" }, -- <space>m + j/k (con N opcional)
-        { "<leader>l", group = "líneas" },       -- <space>ll = toggle wrap
-        { "<leader>g", group = "git / diffs" },   -- <space>g + d/D/h/H/s/c/b/q
-        { "<leader>h", group = "git hunks" },     -- <space>h + s/r/p/b/d... (gitsigns)
-        { "<leader>c", group = "copiar ruta" },   -- <space>c + r/a/n
+        { "<leader>f", group = "buscar / find" },   -- <space>f + f/a/F/g/b/h/d/r/o/t
+        { "<leader>e", group = "explorador" },       -- <space>e + e/f/c/C/r (nvim-tree)
+        { "<leader>m", group = "mover líneas" },     -- <space>m + j/k (con N opcional)
+        { "<leader>l", group = "líneas" },           -- <space>ll = toggle wrap
+        { "<leader>g", group = "git / diffs" },       -- <space>g + d/D/h/H/s/c/b/q
+        { "<leader>h", group = "git hunks" },         -- <space>h + s/r/p/b/d... (gitsigns)
+        { "<leader>c", group = "copiar ruta" },       -- <space>c + r/a/n
+        { "<leader>s", group = "splits / ventanas" }, -- <space>s + v/h/e/x
+        { "<leader>t", group = "pestañas / traducir"},-- <space>t + o/x/n/p / t/w/s/e/l
+        { "<leader>u", group = "ui / toggles" },     -- <space>u + n
       },
     },
   },

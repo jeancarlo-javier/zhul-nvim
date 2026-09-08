@@ -10,6 +10,8 @@ return {
     cmd = "Telescope",
     keys = {
       { "<leader>ff", "<cmd>Telescope find_files<cr>", desc = "Find files" },
+      { "<leader>fa", "<cmd>Telescope find_files hidden=true no_ignore=false<cr>", desc = "Find all files (inc. hidden)" },
+      { "<leader>fF", function() require("telescope.builtin").find_files({ cwd = vim.fn.expand("%:p:h") }) end, desc = "Find files in buffer dir" },
       { "<leader>fg", "<cmd>Telescope live_grep<cr>", desc = "Live grep" },
       { "<leader>fb", "<cmd>Telescope buffers<cr>", desc = "Find buffers" },
       { "<leader>fh", "<cmd>Telescope help_tags<cr>", desc = "Help tags" },
@@ -20,7 +22,42 @@ return {
       { "<leader>gc", "<cmd>Telescope git_commits<cr>", desc = "Git: commits del repo" },
       { "<leader>gb", "<cmd>Telescope git_bcommits<cr>", desc = "Git: commits de este archivo" },
     },
-    opts = {},
+    opts = {
+      defaults = {
+        prompt_prefix = "   ",
+        selection_caret = "  ",
+        path_display = { "truncate" },
+        sorting_strategy = "ascending",
+        layout_config = {
+          horizontal = {
+            prompt_position = "top",
+            preview_width = 0.55,
+          },
+        },
+        file_ignore_patterns = {
+          "%.git/",
+          "node_modules/",
+          "%.DS_Store$",
+        },
+        mappings = {
+          i = {
+            ["<C-j>"] = "move_selection_next",
+            ["<C-k>"] = "move_selection_previous",
+            ["<C-q>"] = "send_to_qflist",
+          },
+        },
+      },
+      pickers = {
+        buffers = {
+          sort_lastused = true,
+          mappings = {
+            i = {
+              ["<C-d>"] = "delete_buffer",
+            },
+          },
+        },
+      },
+    },
   },
 
   -- File explorer
@@ -30,13 +67,29 @@ return {
     lazy = false, -- cargar al inicio para tomar el control de `nvim .` (en vez de netrw)
     keys = {
       { "<leader>ee", "<cmd>NvimTreeToggle<cr>", desc = "Toggle file explorer" },
-      { "<leader>ef", "<cmd>NvimTreeFindFileToggle<cr>", desc = "Explorer on current file" },
+      { "<leader>ef", "<cmd>NvimTreeFindFile<cr>", desc = "Focus current file in explorer" },
       { "<leader>ec", "<cmd>NvimTreeCollapse<cr>", desc = "Collapse explorer" },
+      { "<leader>eC", "<cmd>NvimTreeCollapseKeepBuffers<cr>", desc = "Collapse keeping open buffers" },
       { "<leader>er", "<cmd>NvimTreeRefresh<cr>", desc = "Refresh explorer" },
     },
     opts = {
       hijack_netrw = true, -- reemplaza al explorador viejo (netrw)
       hijack_directories = { enable = true, auto_open = true }, -- `nvim .` abre el árbol
+      sync_root_with_cwd = true, -- mantiene la raíz sincronizada al cambiar directorio
+      update_focused_file = {
+        enable = true, -- despliega carpetas y enfoca el archivo activo al abrirlo
+        update_root = {
+          enable = false,
+        },
+      },
+      actions = {
+        open_file = {
+          resize_window = true,
+          window_picker = {
+            enable = true,
+          },
+        },
+      },
       view = {
         width = 32,
         signcolumn = "no",     -- git y diagnósticos van pegados al nombre, no en columna aparte
