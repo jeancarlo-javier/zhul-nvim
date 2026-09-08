@@ -48,7 +48,10 @@ return {
       scope = { enabled = true },       -- chunk scope (minimap del bloque lógico)
       words = { enabled = true },       -- resalta la palabra bajo el cursor (LSP references)
       input = { enabled = true },       -- reemplaza vim.ui.input
-      image = { enabled = true },       -- muestra imágenes reales (Kitty graphics: Ghostty/kitty/wezterm)
+      -- Preview de imágenes APAGADO a propósito: en Warp (kitty graphics a medias) las
+      -- imágenes salían gigantes, descuadradas y sin borrarse. Se hará de otra forma.
+      -- Abrir un archivo de imagen lo maneja Quick Look (ver lua/config.lua).
+      image = { enabled = false },
     },
   },
 

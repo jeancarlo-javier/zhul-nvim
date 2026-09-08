@@ -28,7 +28,12 @@ Theme is **Kanagawa Dragon** (warm, desaturated ink palette) with a **transparen
 | **Node.js** | `ts_ls`, `eslint`, `prettier` |
 | **Karabiner-Elements** (macOS) | optional — only for the `Ctrl+[` remap |
 | **translate-shell** (`trans`) | inline translator — `brew install translate-shell` |
-| **ImageMagick** (`magick`) | image preview via `snacks.image` — `brew install imagemagick` |
+
+Image previews inside the buffer are **off**. `snacks.image` needs a terminal that implements the
+kitty graphics protocol faithfully; Warp only half-implements it (it ignores the cell grid, ignores
+targeted deletes, and places against the cursor it holds at flush time), which left oversized,
+misframed previews that never got erased. Opening an image file hands it to **Quick Look** instead
+(space closes it). To be revisited another way.
 
 Language servers (`lua_ls`, `ts_ls`, `pyright`, `rust_analyzer`, `eslint`) and tools (`stylua`, `prettier`, `ruff`) are installed automatically by **Mason** on first launch.
 

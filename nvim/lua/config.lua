@@ -13,6 +13,8 @@ g.maplocalleader = " "
 g.loaded_netrw = 1
 g.loaded_netrwPlugin = 1
 
+-- Evitar que el runtime de Neovim fuerce 4 espacios en Markdown (usar 2 espacios globales)
+g.markdown_recommended_style = 0
 -- Basic settings
 opt.number = true
 opt.relativenumber = true
@@ -47,6 +49,7 @@ local ft_indent = {
   python = { tabstop = 4, shiftwidth = 4 },
   go = { tabstop = 4, shiftwidth = 4, expandtab = false },
   make = { expandtab = false },
+  markdown = { tabstop = 2, shiftwidth = 2, softtabstop = 2 },
 }
 vim.api.nvim_create_autocmd("FileType", {
   group = vim.api.nvim_create_augroup("ft_indent", { clear = true }),
@@ -215,10 +218,14 @@ end
 keymap.set("n", "<leader>mj", function() move_line("down") end, { desc = "Mover línea abajo (N opcional)" })
 keymap.set("n", "<leader>mk", function() move_line("up") end, { desc = "Mover línea arriba (N opcional)" })
 
--- Better indenting
-keymap.set("v", "<", "<gv")
-keymap.set("v", ">", ">gv")
-
+-- Better indenting: Tab y Shift-Tab en modo visual (x) para tabular/des-tabular
+-- manteniendo la selección activa (gv), igual que en VS Code / Obsidian / editores modernos.
+-- Se usa modo "x" (visual) y NO "v" para no pisar el modo Select (s) usado por
+-- los snippets de autocompletado (blink.cmp / luasnip).
+keymap.set("x", "<Tab>", ">gv", { desc = "Indentar selección (Tab)" })
+keymap.set("x", "<S-Tab>", "<gv", { desc = "Desindentar selección (Shift-Tab)" })
+keymap.set("x", "<", "<gv", { desc = "Desindentar selección (<)" })
+keymap.set("x", ">", ">gv", { desc = "Indentar selección (>)" })
 -- Shift-Tab para dedent en modo inserción (equivalente a Ctrl-D nativo)
 keymap.set("i", "<S-Tab>", "<C-d>", { desc = "Dedent line" })
 
@@ -249,17 +256,18 @@ vim.api.nvim_create_autocmd("QuitPre", {
 })
 
 
--- ponytail: Warp no soporta el kitty graphics protocol, así que snacks.image no puede
--- pintar nada. Fallback: abrir la imagen en Quick Look (espacio para cerrar) y descartar
--- el buffer binario. En Ghostty/kitty/wezterm no aplica: ahí snacks la renderiza inline.
-vim.api.nvim_create_autocmd("BufReadCmd", {
-  pattern = { "*.png", "*.jpg", "*.jpeg", "*.gif", "*.webp", "*.bmp", "*.heic", "*.avif" },
-  callback = function(ev)
-    if vim.env.TERM_PROGRAM ~= "WarpTerminal" then return false end
-    vim.system({ "qlmanage", "-p", ev.match }, { stderr = false, stdout = false })
-    vim.schedule(function()
-      vim.api.nvim_buf_delete(ev.buf, { force = true })
-      vim.notify("Quick Look: " .. vim.fn.fnamemodify(ev.match, ":t"))
-    end)
-  end,
-})
+-- ponytail: el preview de imágenes en el buffer está apagado (ver plugins/ui.lua), así
+-- que abrir un archivo de imagen mostraría binario. Se abre en Quick Look (espacio para
+-- cerrar) y se descarta el buffer.
+if vim.fn.executable("qlmanage") == 1 then
+  vim.api.nvim_create_autocmd("BufReadCmd", {
+    pattern = { "*.png", "*.jpg", "*.jpeg", "*.gif", "*.webp", "*.bmp", "*.heic", "*.avif" },
+    callback = function(ev)
+      vim.system({ "qlmanage", "-p", ev.match }, { stderr = false, stdout = false })
+      vim.schedule(function()
+        vim.api.nvim_buf_delete(ev.buf, { force = true })
+        vim.notify("Quick Look: " .. vim.fn.fnamemodify(ev.match, ":t"))
+      end)
+    end,
+  })
+end
