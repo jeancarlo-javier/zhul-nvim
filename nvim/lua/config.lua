@@ -118,7 +118,7 @@ local function smart_search_nav(direction)
     local count = vim.v.count1
     local ok, err = pcall(vim.cmd, "normal! " .. count .. key)
     if not ok and err then
-      vim.api.nvim_echo({ { err:match("E%d+:.*") or err, "ErrorMsg" } }, false, {})
+      vim.api.nvim_echo({ { err:match("E%d+:.*") or err, "ErrorMsg" } }, true, {})
     end
     return
   end
@@ -137,23 +137,21 @@ local function smart_search_nav(direction)
   if cword == "" then
     return
   end
+  -- \C forces case-sensitive matching regardless of 'ignorecase'/'smartcase'
+  local pattern = [[\C\<]] .. vim.fn.escape(cword, [[/\]]) .. [[\>]]
+  local sc = vim.fn.searchcount({ pattern = pattern, maxcount = 2 })
+  if sc.total <= 1 then
+    vim.notify("Only occurrence of '" .. cword .. "'", vim.log.levels.INFO)
+    return
+  end
 
-  local pattern = [[\<]] .. vim.fn.escape(cword, [[/\]]) .. [[\>]]
   local flags = direction > 0 and "w" or "bw"
   local count = vim.v.count1
-  local start_pos = vim.api.nvim_win_get_cursor(0)
-
   vim.cmd("normal! m`") -- save position to jumplist (<C-o>)
   for _ = 1, count do
     vim.fn.search(pattern, flags)
   end
-
-  local end_pos = vim.api.nvim_win_get_cursor(0)
-  if start_pos[1] == end_pos[1] and start_pos[2] == end_pos[2] then
-    vim.notify("Only occurrence of '" .. cword .. "'", vim.log.levels.INFO)
-  else
-    vim.cmd("normal! zv") -- open folds if match is hidden
-  end
+  vim.cmd("normal! zv") -- open folds if match is hidden
 end
 
 keymap.set("n", "n", function() smart_search_nav(1) end, { desc = "Next search match / exact word" })
