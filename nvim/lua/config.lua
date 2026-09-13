@@ -95,11 +95,69 @@ opt.completeopt = "menu,menuone,noselect"
 opt.diffopt:append({ "vertical", "algorithm:histogram", "indent-heuristic" })
 
 -- Search settings
-opt.hlsearch = false
+opt.hlsearch = true
 opt.incsearch = true
 
--- Limpiar el resaltado de búsqueda con <Esc>
-keymap.set("n", "<Esc>", "<cmd>nohlsearch<CR>", { desc = "Clear search highlight" })
+-- Limpiar término de búsqueda y resaltado con <Esc> o <leader>nh
+local function clear_search()
+  vim.cmd("nohlsearch")
+  vim.fn.setreg("/", "")
+end
+keymap.set("n", "<Esc>", clear_search, { desc = "Limpiar término de búsqueda y resaltado" })
+keymap.set("n", "<leader>nh", clear_search, { desc = "Limpiar término de búsqueda y resaltado" })
+
+-- Navegación inteligente de búsqueda / palabra exacta (n / N):
+-- 1) Si hay un término de búsqueda activo en `@/` (de un `/patrón`), 'n' y 'N' navegan ese término.
+-- 2) Si NO hay término de búsqueda activo (inicialmente o tras limpiarlo con <Esc>):
+--    - Prioridad 1: si Snacks.words tiene referencias LSP bajo el cursor, navega entre ellas.
+--    - Prioridad 2: salta a la siguiente/anterior ocurrencia exacta de la palabra bajo el cursor (<cword>).
+local function smart_search_nav(direction)
+  local search_reg = vim.fn.getreg("/")
+  if search_reg ~= "" then
+    local key = direction > 0 and "n" or "N"
+    local count = vim.v.count1
+    local ok, err = pcall(vim.cmd, "normal! " .. count .. key)
+    if not ok and err then
+      vim.api.nvim_echo({ { err:match("E%d+:.*") or err, "ErrorMsg" } }, false, {})
+    end
+    return
+  end
+
+  -- Prioridad 1: referencias LSP mediante Snacks.words si está disponible y activo
+  if _G.Snacks and Snacks.words and Snacks.words.is_enabled() then
+    local words, idx = Snacks.words.get()
+    if words and #words > 1 and idx then
+      Snacks.words.jump(direction * vim.v.count1, true)
+      return
+    end
+  end
+
+  -- Prioridad 2: coincidencia exacta de la palabra bajo el cursor (<cword>)
+  local cword = vim.fn.expand("<cword>")
+  if cword == "" then
+    return
+  end
+
+  local pattern = [[\<]] .. vim.fn.escape(cword, [[/\]]) .. [[\>]]
+  local flags = direction > 0 and "w" or "bw"
+  local count = vim.v.count1
+  local start_pos = vim.api.nvim_win_get_cursor(0)
+
+  vim.cmd("normal! m`") -- guardar posición en el jumplist (<C-o>)
+  for _ = 1, count do
+    vim.fn.search(pattern, flags)
+  end
+
+  local end_pos = vim.api.nvim_win_get_cursor(0)
+  if start_pos[1] == end_pos[1] and start_pos[2] == end_pos[2] then
+    vim.notify("Única ocurrencia de '" .. cword .. "'", vim.log.levels.INFO)
+  else
+    vim.cmd("normal! zv") -- abrir folds si la coincidencia está oculta
+  end
+end
+
+keymap.set("n", "n", function() smart_search_nav(1) end, { desc = "Siguiente búsqueda / palabra exacta" })
+keymap.set("n", "N", function() smart_search_nav(-1) end, { desc = "Anterior búsqueda / palabra exacta" })
 
 -- Toggle números: absoluto (real en todas las líneas) <-> híbrido (real solo en el cursor)
 -- Aplica a la ventana actual y a los archivos que abras después (vim.opt = global + local).
@@ -125,9 +183,6 @@ for key, mod in pairs({ r = ":.", a = ":p", n = ":t" }) do
 end
 -- Copiar selección visual al portapapeles del sistema con ⌘C.
 keymap.set("x", "<D-c>", '"+y', { desc = "Copiar selección al portapapeles" })
-
--- Clear search highlights
-keymap.set("n", "<leader>nh", ":nohl<CR>", { desc = "Clear search highlights" })
 
 -- Window management
 keymap.set("n", "<leader>sv", "<C-w>v", { desc = "Split window vertically" })
