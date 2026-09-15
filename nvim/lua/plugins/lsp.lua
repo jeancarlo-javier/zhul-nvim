@@ -110,6 +110,39 @@ return {
         settings = { Lua = { workspace = { checkThirdParty = false } } },
       })
 
+      -- pyright: usa el venv del proyecto (.venv / venv / env) o $VIRTUAL_ENV.
+      -- Sin esto solo detecta ".venv"/"venv" y marca "Import could not be resolved".
+      vim.lsp.config("pyright", {
+        root_markers = { "pyproject.toml", "pyrightconfig.json", "setup.py", "requirements.txt",
+          ".venv", "venv", "env", ".git" },
+        -- on_init (no before_init): client.settings se copia ANTES de before_init,
+        -- así que mutar config.settings ahí no llega al server.
+        on_init = function(client)
+          local root = client.root_dir or vim.fn.getcwd()
+          local candidates = { vim.env.VIRTUAL_ENV }
+          for _, name in ipairs({ ".venv", "venv", "env" }) do
+            table.insert(candidates, root .. "/" .. name)
+          end
+          for _, dir in ipairs(candidates) do
+            local py = dir and (dir .. "/bin/python") or nil
+            if py and vim.fn.executable(py) == 1 then
+              client.settings = vim.tbl_deep_extend("force", client.settings or {},
+                { python = { pythonPath = py } })
+              client:notify("workspace/didChangeConfiguration", { settings = client.settings })
+              return
+            end
+          end
+        end,
+      })
+
+      -- ruff corre también como LSP (lint + code actions). Hover lo da pyright;
+      -- sin esto K muestra la doc dos veces.
+      vim.lsp.config("ruff", {
+        on_attach = function(client)
+          client.server_capabilities.hoverProvider = false
+        end,
+      })
+
       -- sourcekit-lsp lo trae Xcode (/usr/bin/sourcekit-lsp), Mason no lo instala:
       -- va fuera de mason-lspconfig, encendido a mano. Limitado a Swift/ObjC para
       -- que no se enganche a cualquier .c dentro de un repo git.
