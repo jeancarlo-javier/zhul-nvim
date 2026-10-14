@@ -282,19 +282,8 @@ keymap.set("x", ">", ">gv", { desc = "Indentar selección (>)" })
 -- Shift-Tab para dedent en modo inserción (equivalente a Ctrl-D nativo)
 keymap.set("i", "<S-Tab>", "<C-d>", { desc = "Dedent line" })
 
--- Extend an existing visual selection to a mouse click.
--- Usage is terminal-independent: press `v`, then click the endpoint.
-local function extend_selection_to_mouse()
-  local m = vim.fn.getmousepos()
-  if m.winid == 0 or m.winid ~= vim.api.nvim_get_current_win() or m.line == 0 then
-    return
-  end
-
-  local target_line = math.min(math.max(1, m.line), vim.api.nvim_buf_line_count(0))
-  vim.api.nvim_win_set_cursor(0, { target_line, math.max(0, m.column - 1) })
-end
-
-keymap.set("x", "<LeftMouse>", extend_selection_to_mouse, { desc = "Extend visual selection to click" })
+-- ponytail: no <LeftMouse> override in visual; a plain click exits visual (native).
+-- To extend a selection use Shift+click (native) or keyboard motions.
 
 -- ¿Arrancamos en modo directorio? (nvim . / nvim carpeta, NO nvim archivo)
 do
