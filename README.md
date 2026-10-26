@@ -319,7 +319,7 @@ Setup:
 
 This isn't the only rule in `~/.config/karabiner/karabiner.json`. Holding **`Caps Lock`** peeks the
 Stage Manager strip (`⌥` during the hold swaps to the Dock, `Tab` brings the cursor back), and
-`Cmd/Ctrl+Shift+[` → F16 inside Obsidian. All of them share that one file, so when you hand-edit it:
+`Cmd/Ctrl+Shift+[` → `Ctrl+Shift+Tab` inside Obsidian. All of them share that one file, so when you hand-edit it:
 lint with `karabiner_cli --lint-complex-modifications` before injecting, and never
 `launchctl kickstart -k` the agent — quit it from the menu bar icon instead.
 
