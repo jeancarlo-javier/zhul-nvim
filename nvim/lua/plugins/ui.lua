@@ -1,6 +1,9 @@
 -- lua/plugins/ui.lua
 -- Interfaz: statusline, hints de atajos, y mejoras de calidad de vida (snacks).
 
+-- buffer -> position in the tab bar (see bufferline's sort_by)
+local tab_order, next_tab = {}, 0
+
 return {
   -- Statusline
   {
@@ -14,6 +17,8 @@ return {
         section_separators = "",
         component_separators = "|",
       },
+      -- empty editor after closing every tab: no "[No Name]" label
+      sections = { lualine_c = { { "filename", symbols = { unnamed = "" } } } },
     },
   },
 
@@ -23,11 +28,36 @@ return {
     version = "*",
     dependencies = { "nvim-tree/nvim-web-devicons" },
     event = "VeryLazy",
+    init = function() -- at startup, so files opened before bufferline loads are counted too
+      local grp = vim.api.nvim_create_augroup("tab_order", { clear = true })
+      vim.api.nvim_create_autocmd("BufAdd", { -- also fires when a closed buffer is relisted
+        group = grp,
+        callback = function(ev)
+          if tab_order[ev.buf] then return end -- a rename (:saveas) keeps the tab in place
+          next_tab = next_tab + 1
+          tab_order[ev.buf] = next_tab
+        end,
+      })
+      vim.api.nvim_create_autocmd("BufDelete", { group = grp, callback = function(ev) tab_order[ev.buf] = nil end })
+    end,
     opts = {
       options = {
         -- Snacks.bufdelete cierra el buffer sin romper el layout de ventanas
         close_command = function(n) Snacks.bufdelete(n) end,
         right_mouse_command = function(n) Snacks.bufdelete(n) end,
+        -- no tab for the empty [No Name] left after closing the last one (VSCode's empty
+        -- editor); clicking it from the tree would also open it in the tree's window
+        custom_filter = function(b)
+          return vim.api.nvim_buf_get_name(b) ~= "" or vim.bo[b].modified
+        end,
+        -- new tabs go on the right, in the order they were opened. By id (default) or
+        -- "insert_at_end" (by id after one redraw), a reopened file keeps its old buffer
+        -- number and jumped back to the left.
+        sort_by = function(a, b)
+          local oa, ob = tab_order[a.id] or 0, tab_order[b.id] or 0
+          if oa ~= ob then return oa < ob end
+          return a.id < b.id
+        end,
         show_buffer_close_icons = true,
         -- the default icon (󰅖, Nerd Font v3) may not render in the terminal font; ASCII always does
         buffer_close_icon = "x",

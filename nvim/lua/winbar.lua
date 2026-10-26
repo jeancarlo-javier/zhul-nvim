@@ -64,6 +64,9 @@ function M.render(winid)
   local active = win == vim.api.nvim_get_current_win()
 
   local fullname = vim.api.nvim_buf_get_name(buf)
+  -- empty editor after closing every tab: nothing to name (kept blank, not removed, so the
+  -- layout doesn't jump when you start typing)
+  if fullname == "" and not vim.bo[buf].modified then return "" end
   local filename = fullname ~= "" and vim.fn.fnamemodify(fullname, ":t") or "[Sin nombre]"
   local parent = fullname ~= "" and vim.fn.fnamemodify(fullname, ":h:t") or ""
 

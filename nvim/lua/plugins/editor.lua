@@ -182,8 +182,12 @@ return {
         -- empezar el arrastre ya dentro del código sigue funcionando igual.
         vim.keymap.set({ "n", "x" }, "<LeftMouse>", function()
           local pos = vim.fn.getmousepos()
-          if pos.winid == 0 or not vim.api.nvim_win_is_valid(pos.winid) then return end
-          if pos.line < 1 then return end -- clic en winbar/statusline, no en texto
+          -- not on text (tabline -> bufferline's "x"/tabs, winbar, statusline): native click.
+          -- "i" puts it before the already-queued release; at the end it would arrive too late.
+          if pos.winid == 0 or pos.line < 1 then
+            return vim.api.nvim_feedkeys(vim.keycode("<LeftMouse>"), "ni", false)
+          end
+          if not vim.api.nvim_win_is_valid(pos.winid) then return end
           local buf = vim.api.nvim_win_get_buf(pos.winid)
           if pos.line > vim.api.nvim_buf_line_count(buf) then return end
           local text = vim.api.nvim_buf_get_lines(buf, pos.line - 1, pos.line, false)[1] or ""
@@ -201,6 +205,9 @@ return {
         end, vim.tbl_extend("force", o, { desc = "Clic: mover el cursor" }))
 
         local function click_open(double)
+          -- release outside the tree (e.g. on a tab) must not open the node under the cursor
+          local pos = vim.fn.getmousepos()
+          if pos.winid ~= vim.api.nvim_get_current_win() or pos.line < 1 then return end
           local ok, node = pcall(api.tree.get_node_under_cursor)
           if not ok or not node then return end
           if node.type == "directory" then

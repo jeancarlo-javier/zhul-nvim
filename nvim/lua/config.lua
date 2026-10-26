@@ -311,14 +311,108 @@ vim.api.nvim_create_autocmd("QuitPre", {
   end,
 })
 
--- Un clic en nvim-tree abre el archivo en "preview" (bufhidden=delete: su tab se
--- cierra al cambiar de archivo si no lo editaste). Entrar a su ventana lo fija,
--- como en VSCode: clic en el árbol = vistazo, clic en el código = se queda.
-vim.api.nvim_create_autocmd("WinEnter", {
-  group = vim.api.nvim_create_augroup("pin_tree_preview", { clear = true }),
+-- :q on the last file window would leave nvim-tree alone at full width. Treat it like
+-- closing a tab instead: drop the buffer and show the previous one (the window's
+-- alternate, else the most recently used) next to the tree. With no buffers left, the
+-- full-screen tree stays (see fallback above) and another :q exits.
+vim.api.nvim_create_autocmd("QuitPre", {
+  group = vim.api.nvim_create_augroup("quit_keeps_editor", { clear = true }),
   callback = function()
-    if vim.bo.bufhidden == "delete" and vim.bo.buftype == "" then vim.bo.bufhidden = "" end
+    if vim.bo.buftype ~= "" or vim.api.nvim_win_get_config(0).relative ~= "" then return end
+    local win, buf, alt = vim.api.nvim_get_current_win(), vim.api.nvim_get_current_buf(), vim.fn.bufnr("#")
+    vim.schedule(function() -- after :q has run
+      if vim.api.nvim_win_is_valid(win) then return end -- :q failed or didn't close it
+      local ok, api = pcall(require, "nvim-tree.api")
+      if not ok then return end
+      local wins = vim.tbl_filter(function(w)
+        return vim.api.nvim_win_get_config(w).relative == ""
+      end, vim.api.nvim_tabpage_list_wins(0))
+      if #wins ~= 1 or not api.tree.is_tree_buf(vim.api.nvim_win_get_buf(wins[1])) then return end
+      if vim.api.nvim_buf_is_valid(buf) then
+        if vim.bo[buf].modified then -- :q with 'hidden' keeps it; say so instead of hiding it silently
+          vim.notify(vim.fn.bufname(buf) .. ": unsaved changes kept in its tab", vim.log.levels.WARN)
+        else
+          if vim.bo[buf].buflisted then vim.cmd.bdelete(buf) end -- a preview may be gone already
+        end
+      end
+      local bufs = vim.tbl_filter(function(b)
+        return b.bufnr ~= buf and vim.bo[b.bufnr].buftype == "" and (b.name ~= "" or b.changed == 1)
+      end, vim.fn.getbufinfo({ buflisted = 1 }))
+      if #bufs == 0 then return end
+      table.sort(bufs, function(a, b)
+        if (a.bufnr == alt) ~= (b.bufnr == alt) then return a.bufnr == alt end
+        return a.lastused > b.lastused
+      end)
+      vim.api.nvim_open_win(bufs[1].bufnr, true, { split = "right", win = wins[1] })
+      api.tree.resize() -- back to the configured width
+    end)
   end,
+})
+
+-- Closing the last tab leaves an empty [No Name] (Snacks.bufdelete) that would linger as
+-- a tab; drop it once something else replaces it.
+vim.api.nvim_create_autocmd("BufHidden", {
+  group = vim.api.nvim_create_augroup("drop_empty_noname", { clear = true }),
+  callback = function(ev)
+    local b = ev.buf
+    if ev.file ~= "" or vim.bo[b].buftype ~= "" or not vim.bo[b].buflisted then return end
+    vim.schedule(function()
+      if not vim.api.nvim_buf_is_valid(b) or #vim.fn.win_findbuf(b) > 0 or vim.bo[b].modified then return end
+      if vim.api.nvim_buf_line_count(b) > 1 or vim.api.nvim_buf_get_lines(b, 0, 1, false)[1] ~= "" then return end
+      pcall(vim.api.nvim_buf_delete, b, {})
+    end)
+  end,
+})
+
+-- Tabs only for files you work on (VSCode's preview tab): a file opened after startup is a
+-- preview, closed as soon as another buffer takes its window. Entering insert mode or
+-- changing it (dd, p, :s, a formatter...) pins it as a tab. Files given on the command
+-- line start pinned. b:preview: nil = never read, true = preview, false = pinned
+-- (b: vars are cleared on :bdelete, so a closed tab reopens as a preview).
+local preview_grp = vim.api.nvim_create_augroup("preview_tabs", { clear = true })
+vim.api.nvim_create_autocmd("VimEnter", {
+  group = preview_grp,
+  callback = function()
+    for _, b in ipairs(vim.api.nvim_list_bufs()) do
+      if vim.bo[b].buflisted then vim.b[b].preview = false end
+    end
+  end,
+})
+vim.api.nvim_create_autocmd("BufReadPost", {
+  group = preview_grp,
+  callback = function(ev) -- also fires on :e! / autoread reloads, hence the nil check
+    if vim.b[ev.buf].preview == nil and vim.bo[ev.buf].buftype == "" and vim.bo[ev.buf].buflisted then
+      vim.b[ev.buf].preview = vim.v.vim_did_enter == 1
+    end
+  end,
+})
+-- BufModifiedSet only fires once the main loop idles; BufWritePre catches a change that is
+-- saved before that (a macro, a command chain, format-on-save).
+vim.api.nvim_create_autocmd({ "InsertEnter", "BufModifiedSet", "BufWritePre" }, {
+  group = preview_grp,
+  callback = function(ev)
+    if not vim.b[ev.buf].preview or (ev.event ~= "InsertEnter" and not vim.bo[ev.buf].modified) then return end
+    vim.b[ev.buf].preview = false
+    if vim.bo[ev.buf].bufhidden == "delete" then vim.bo[ev.buf].bufhidden = "" end -- nvim-tree's own preview flag
+  end,
+})
+vim.api.nvim_create_autocmd("BufHidden", {
+  group = preview_grp,
+  callback = function(ev)
+    local b = ev.buf
+    if not vim.b[b].preview then return end
+    vim.schedule(function() -- BufHidden can't delete the buffer it fires for
+      if not vim.api.nvim_buf_is_valid(b) or not vim.b[b].preview or vim.bo[b].modified then return end
+      if #vim.fn.win_findbuf(b) == 0 and vim.bo[b].buflisted then pcall(vim.cmd.bdelete, b) end
+    end)
+  end,
+})
+
+-- Clicking the tree from insert mode would keep insert mode inside the tree.
+vim.api.nvim_create_autocmd("BufEnter", {
+  group = vim.api.nvim_create_augroup("tree_never_insert", { clear = true }),
+  pattern = "NvimTree_*",
+  command = "stopinsert",
 })
 
 -- ponytail: el preview de imágenes en el buffer está apagado (ver plugins/ui.lua), así
