@@ -311,6 +311,15 @@ vim.api.nvim_create_autocmd("QuitPre", {
   end,
 })
 
+-- Un clic en nvim-tree abre el archivo en "preview" (bufhidden=delete: su tab se
+-- cierra al cambiar de archivo si no lo editaste). Entrar a su ventana lo fija,
+-- como en VSCode: clic en el árbol = vistazo, clic en el código = se queda.
+vim.api.nvim_create_autocmd("WinEnter", {
+  group = vim.api.nvim_create_augroup("pin_tree_preview", { clear = true }),
+  callback = function()
+    if vim.bo.bufhidden == "delete" and vim.bo.buftype == "" then vim.bo.bufhidden = "" end
+  end,
+})
 
 -- ponytail: el preview de imágenes en el buffer está apagado (ver plugins/ui.lua), así
 -- que abrir un archivo de imagen mostraría binario. Se abre en Quick Look (espacio para

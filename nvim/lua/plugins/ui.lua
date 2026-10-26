@@ -17,6 +17,26 @@ return {
     },
   },
 
+  -- Tabs de archivos (buffers) arriba, con "x" clickeable para cerrar
+  {
+    "akinsho/bufferline.nvim",
+    version = "*",
+    dependencies = { "nvim-tree/nvim-web-devicons" },
+    event = "VeryLazy",
+    opts = {
+      options = {
+        -- Snacks.bufdelete cierra el buffer sin romper el layout de ventanas
+        close_command = function(n) Snacks.bufdelete(n) end,
+        right_mouse_command = function(n) Snacks.bufdelete(n) end,
+        show_buffer_close_icons = true,
+        -- the default icon (󰅖, Nerd Font v3) may not render in the terminal font; ASCII always does
+        buffer_close_icon = "x",
+        diagnostics = "nvim_lsp",
+        offsets = { { filetype = "NvimTree", text = "Explorer", separator = true } },
+      },
+    },
+  },
+
   -- Hints de atajos (which-key v3)
   {
     "folke/which-key.nvim",
