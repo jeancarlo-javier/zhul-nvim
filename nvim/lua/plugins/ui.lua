@@ -49,6 +49,8 @@ return {
         -- editor); clicking it from the tree would also open it in the tree's window
         custom_filter = function(b)
           if vim.b[b].diffview then return false end -- a Diffview pane's file, not a tab
+          -- inside a Diffview only the tab numbers show: a file tab clicked there opens in a diff pane
+          if package.loaded["diffview.lib"] and require("diffview.lib").get_current_view() then return false end
           return vim.api.nvim_buf_get_name(b) ~= "" or vim.bo[b].modified
         end,
         -- new tabs go on the right, in the order they were opened. By id (default) or
