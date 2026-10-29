@@ -250,7 +250,7 @@ local function cycle_tab(cmd)
         end
       end
     end
-    vim.cmd(cmd)
+    if type(cmd) == "function" then cmd() else vim.cmd(cmd) end
   end
 end
 -- Opt+[ / Opt+] like VSCode. Right Opt is Meta in Warp (<M-[>); left Opt types “ / ‘ on ABC
@@ -262,12 +262,23 @@ for _, lhs in ipairs({ "<M-]>", "‘" }) do
 end
 -- Opt+Tab like VSCode's Ctrl+Tab: jump to the last used tab
 keymap.set("n", "<M-Tab>", "<cmd>silent! buffer #<CR>", { desc = "Last used tab" })
+-- Opt+w like VSCode's Cmd+W: close the current tab (the whole view inside a Diffview).
+-- Left Opt+w types ∑ on ABC.
+local close_tab = cycle_tab(function() Snacks.bufdelete() end)
+for _, lhs in ipairs({ "<M-w>", "∑" }) do
+  keymap.set("n", lhs, function()
+    if package.loaded["diffview.lib"] and require("diffview.lib").get_current_view() then
+      return vim.cmd("DiffviewClose")
+    end
+    close_tab()
+  end, { desc = "Close tab" })
+end
 -- In insert/visual mode, without these, Opt+[ arrived as <Esc> + a pending "[". Insert
--- skips “ / ‘ so left Opt can still type them.
-for _, lhs in ipairs({ "<M-[>", "<M-]>", "<M-Tab>" }) do
+-- skips “ / ‘ / ∑ so left Opt can still type them.
+for _, lhs in ipairs({ "<M-[>", "<M-]>", "<M-Tab>", "<M-w>" }) do
   keymap.set({ "i", "x" }, lhs, "<Esc>" .. lhs, { remap = true })
 end
-for _, lhs in ipairs({ "“", "‘" }) do
+for _, lhs in ipairs({ "“", "‘", "∑" }) do
   keymap.set("x", lhs, "<Esc>" .. lhs, { remap = true })
 end
 
