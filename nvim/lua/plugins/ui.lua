@@ -39,6 +39,44 @@ return {
           vim.b[ev.buf].tab_order = next_tab
         end,
       })
+
+      -- Drag a file tab onto another to move it there (bufferline has no drag). The press
+      -- column comes from on_key: a <LeftMouse> map would be shadowed by nvim-tree's
+      -- buffer-local one. Same column math as bufferline's hover (ui.on_hover_over).
+      local press_col
+      local function tab_at(col)
+        local state = require("bufferline.state")
+        local pos = state.left_offset_size
+        if col <= pos then return end
+        for _, item in ipairs(state.visible_components) do
+          pos = pos + item.length
+          if col <= pos then return item.id end
+        end
+      end
+      local left_mouse = vim.keycode("<LeftMouse>")
+      vim.on_key(function(_, typed)
+        if typed == left_mouse then
+          local p = vim.fn.getmousepos()
+          press_col = p.screenrow == 1 and p.screencol or nil
+        end
+      end, vim.api.nvim_create_namespace("tab_drag"))
+      -- true when the release ended a tab drag (nvim-tree's own <LeftRelease> asks first)
+      _G.tab_drag_release = function()
+        local p, col = vim.fn.getmousepos(), press_col
+        press_col = nil
+        if not col or p.screenrow ~= 1 or not package.loaded["bufferline"] then return false end
+        local from, to = tab_at(col), tab_at(p.screencol)
+        if not from or not to or from == to then return false end
+        local ids = vim.tbl_map(function(e) return e.id end, require("bufferline").get_elements().elements)
+        local f, t = vim.fn.index(ids, from) + 1, vim.fn.index(ids, to) + 1
+        table.insert(ids, t, table.remove(ids, f)) -- right of where it was: lands after `to`
+        for i, id in ipairs(ids) do vim.b[id].tab_order = i end
+        require("bufferline.ui").refresh()
+        return true
+      end
+      vim.keymap.set({ "n", "x" }, "<LeftRelease>", function()
+        if not tab_drag_release() then vim.api.nvim_feedkeys(vim.keycode("<LeftRelease>"), "ni", false) end
+      end, { desc = "Drag a tab to reorder" })
     end,
     opts = {
       options = {

@@ -223,7 +223,9 @@ return {
           end
         end
 
-        vim.keymap.set({ "n", "x" }, "<LeftRelease>", function() click_open(false) end,
+        vim.keymap.set({ "n", "x" }, "<LeftRelease>", function()
+          if not tab_drag_release() then click_open(false) end
+        end,
           vim.tbl_extend("force", o, { desc = "Clic: abrir carpeta / preview archivo" }))
 
         -- Un doble clic emite CUATRO eventos:
