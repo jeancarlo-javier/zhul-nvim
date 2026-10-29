@@ -236,15 +236,40 @@ keymap.set("x", "<leader>tt", function() require("translate").selection() end,
 -- BufferLineCycle follows the tab bar's order (custom sort_by); :bnext follows buffer numbers
 keymap.set("n", "<S-h>", "<cmd>BufferLineCyclePrev<CR>", { desc = "Previous buffer" })
 keymap.set("n", "<S-l>", "<cmd>BufferLineCycleNext<CR>", { desc = "Next buffer" })
+-- From the tree (focus stays there after a preview click) BufferLineCycle finds no current
+-- tab and does nothing: move to the editor first (previous window, else any file window).
+local function cycle_tab(cmd)
+  return function()
+    if not vim.bo.buflisted then
+      local wins = vim.api.nvim_tabpage_list_wins(0)
+      table.insert(wins, 1, vim.fn.win_getid(vim.fn.winnr("#")))
+      for _, w in ipairs(wins) do
+        if w ~= 0 and vim.bo[vim.api.nvim_win_get_buf(w)].buflisted then
+          vim.api.nvim_set_current_win(w)
+          break
+        end
+      end
+    end
+    vim.cmd(cmd)
+  end
+end
 -- Opt+[ / Opt+] like VSCode. Right Opt is Meta in Warp (<M-[>); left Opt types “ / ‘ on ABC
 for _, lhs in ipairs({ "<M-[>", "“" }) do
-  keymap.set("n", lhs, "<cmd>BufferLineCyclePrev<CR>", { desc = "Previous tab" })
+  keymap.set("n", lhs, cycle_tab("BufferLineCyclePrev"), { desc = "Previous tab" })
 end
 for _, lhs in ipairs({ "<M-]>", "‘" }) do
-  keymap.set("n", lhs, "<cmd>BufferLineCycleNext<CR>", { desc = "Next tab" })
+  keymap.set("n", lhs, cycle_tab("BufferLineCycleNext"), { desc = "Next tab" })
 end
 -- Opt+Tab like VSCode's Ctrl+Tab: jump to the last used tab
 keymap.set("n", "<M-Tab>", "<cmd>silent! buffer #<CR>", { desc = "Last used tab" })
+-- In insert/visual mode, without these, Opt+[ arrived as <Esc> + a pending "[". Insert
+-- skips “ / ‘ so left Opt can still type them.
+for _, lhs in ipairs({ "<M-[>", "<M-]>", "<M-Tab>" }) do
+  keymap.set({ "i", "x" }, lhs, "<Esc>" .. lhs, { remap = true })
+end
+for _, lhs in ipairs({ "“", "‘" }) do
+  keymap.set("x", lhs, "<Esc>" .. lhs, { remap = true })
+end
 
 -- Better up/down
 keymap.set("n", "j", "v:count == 0 ? 'gj' : 'j'", { expr = true, silent = true })
