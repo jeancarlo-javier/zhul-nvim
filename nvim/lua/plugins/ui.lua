@@ -65,7 +65,11 @@ return {
         -- the default icon (󰅖, Nerd Font v3) may not render in the terminal font; ASCII always does
         buffer_close_icon = "x",
         diagnostics = "nvim_lsp",
-        offsets = { { filetype = "NvimTree", text = "Explorer", separator = true } },
+        offsets = {
+          { filetype = "NvimTree", text = "Explorer", separator = true },
+          { filetype = "DiffviewFiles", text = "Source Control", separator = true },
+          { filetype = "DiffviewFileHistory", text = "File History", separator = true },
+        },
       },
     },
   },
