@@ -233,8 +233,18 @@ keymap.set("x", "<leader>tt", function() require("translate").selection() end,
   { desc = "Traducir selección (ES+EN)" })
 
 -- Buffer navigation
-keymap.set("n", "<S-h>", "<cmd>bprevious<CR>", { desc = "Previous buffer" })
-keymap.set("n", "<S-l>", "<cmd>bnext<CR>", { desc = "Next buffer" })
+-- BufferLineCycle follows the tab bar's order (custom sort_by); :bnext follows buffer numbers
+keymap.set("n", "<S-h>", "<cmd>BufferLineCyclePrev<CR>", { desc = "Previous buffer" })
+keymap.set("n", "<S-l>", "<cmd>BufferLineCycleNext<CR>", { desc = "Next buffer" })
+-- Opt+[ / Opt+] like VSCode. Right Opt is Meta in Warp (<M-[>); left Opt types “ / ‘ on ABC
+for _, lhs in ipairs({ "<M-[>", "“" }) do
+  keymap.set("n", lhs, "<cmd>BufferLineCyclePrev<CR>", { desc = "Previous tab" })
+end
+for _, lhs in ipairs({ "<M-]>", "‘" }) do
+  keymap.set("n", lhs, "<cmd>BufferLineCycleNext<CR>", { desc = "Next tab" })
+end
+-- Opt+Tab like VSCode's Ctrl+Tab: jump to the last used tab
+keymap.set("n", "<M-Tab>", "<cmd>silent! buffer #<CR>", { desc = "Last used tab" })
 
 -- Better up/down
 keymap.set("n", "j", "v:count == 0 ? 'gj' : 'j'", { expr = true, silent = true })
@@ -364,8 +374,8 @@ vim.api.nvim_create_autocmd("BufHidden", {
   end,
 })
 
--- Tabs only for files you work on (VSCode's preview tab): a file opened after startup is a
--- preview, closed as soon as another buffer takes its window. Entering insert mode or
+-- Tabs only for files you work on (VSCode/Zed preview tab): a file opened after startup is a
+-- preview; switching tabs keeps it, opening another file replaces it in its slot. Entering insert mode or
 -- changing it (dd, p, :s, a formatter...) pins it as a tab. Files given on the command
 -- line start pinned. b:preview: nil = never read, true = preview, false = pinned
 -- (b: vars are cleared on :bdelete, so a closed tab reopens as a preview).
@@ -381,9 +391,19 @@ vim.api.nvim_create_autocmd("VimEnter", {
 vim.api.nvim_create_autocmd("BufReadPost", {
   group = preview_grp,
   callback = function(ev) -- also fires on :e! / autoread reloads, hence the nil check
-    if vim.b[ev.buf].preview == nil and vim.bo[ev.buf].buftype == "" and vim.bo[ev.buf].buflisted then
-      vim.b[ev.buf].preview = vim.v.vim_did_enter == 1
-    end
+    local new = ev.buf
+    if vim.b[new].preview ~= nil or vim.bo[new].buftype ~= "" or not vim.bo[new].buflisted then return end
+    vim.b[new].preview = vim.v.vim_did_enter == 1
+    if not vim.b[new].preview then return end
+    vim.schedule(function() -- the new preview replaces the old one, taking its tab slot
+      for _, b in ipairs(vim.api.nvim_list_bufs()) do
+        if b ~= new and vim.b[b].preview and vim.bo[b].buflisted and not vim.bo[b].modified
+          and #vim.fn.win_findbuf(b) == 0 then
+          if vim.api.nvim_buf_is_valid(new) then vim.b[new].tab_order = vim.b[b].tab_order end
+          pcall(vim.cmd.bdelete, b)
+        end
+      end
+    end)
   end,
 })
 -- BufModifiedSet only fires once the main loop idles; BufWritePre catches a change that is
@@ -394,17 +414,6 @@ vim.api.nvim_create_autocmd({ "InsertEnter", "BufModifiedSet", "BufWritePre" }, 
     if not vim.b[ev.buf].preview or (ev.event ~= "InsertEnter" and not vim.bo[ev.buf].modified) then return end
     vim.b[ev.buf].preview = false
     if vim.bo[ev.buf].bufhidden == "delete" then vim.bo[ev.buf].bufhidden = "" end -- nvim-tree's own preview flag
-  end,
-})
-vim.api.nvim_create_autocmd("BufHidden", {
-  group = preview_grp,
-  callback = function(ev)
-    local b = ev.buf
-    if not vim.b[b].preview then return end
-    vim.schedule(function() -- BufHidden can't delete the buffer it fires for
-      if not vim.api.nvim_buf_is_valid(b) or not vim.b[b].preview or vim.bo[b].modified then return end
-      if #vim.fn.win_findbuf(b) == 0 and vim.bo[b].buflisted then pcall(vim.cmd.bdelete, b) end
-    end)
   end,
 })
 

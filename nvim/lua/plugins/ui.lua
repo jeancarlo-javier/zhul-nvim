@@ -1,8 +1,9 @@
 -- lua/plugins/ui.lua
 -- Interfaz: statusline, hints de atajos, y mejoras de calidad de vida (snacks).
 
--- buffer -> position in the tab bar (see bufferline's sort_by)
-local tab_order, next_tab = {}, 0
+-- b:tab_order = position in the tab bar (see bufferline's sort_by); a b: var so a preview
+-- replacing another can take its slot (lua/config.lua), and :bdelete clears it
+local next_tab = 0
 
 return {
   -- Statusline
@@ -33,12 +34,11 @@ return {
       vim.api.nvim_create_autocmd("BufAdd", { -- also fires when a closed buffer is relisted
         group = grp,
         callback = function(ev)
-          if tab_order[ev.buf] then return end -- a rename (:saveas) keeps the tab in place
+          if vim.b[ev.buf].tab_order then return end -- a rename (:saveas) keeps the tab in place
           next_tab = next_tab + 1
-          tab_order[ev.buf] = next_tab
+          vim.b[ev.buf].tab_order = next_tab
         end,
       })
-      vim.api.nvim_create_autocmd("BufDelete", { group = grp, callback = function(ev) tab_order[ev.buf] = nil end })
     end,
     opts = {
       options = {
@@ -54,7 +54,7 @@ return {
         -- "insert_at_end" (by id after one redraw), a reopened file keeps its old buffer
         -- number and jumped back to the left.
         sort_by = function(a, b)
-          local oa, ob = tab_order[a.id] or 0, tab_order[b.id] or 0
+          local oa, ob = vim.b[a.id].tab_order or 0, vim.b[b.id].tab_order or 0
           if oa ~= ob then return oa < ob end
           return a.id < b.id
         end,

@@ -214,7 +214,12 @@ return {
             -- en el doble clic la carpeta ya la abrió/cerró el primer clic
             if not double then api.node.open.edit() end
           elseif node.type == "file" then
-            if double then api.node.open.edit() else api.node.open.preview() end
+            if double then api.node.open.edit() else
+              api.node.open.preview()
+              -- nvim-tree deletes its preview once hidden; ours lives until another file replaces it
+              local b = vim.fn.bufnr(node.absolute_path)
+              if b > 0 then vim.bo[b].bufhidden = "" end
+            end
           end
         end
 
