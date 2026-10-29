@@ -66,7 +66,14 @@ return {
     dependencies = { "nvim-tree/nvim-web-devicons" },
     lazy = false, -- cargar al inicio para tomar el control de `nvim .` (en vez de netrw)
     keys = {
-      { "<leader>ee", "<cmd>NvimTreeToggle<cr>", desc = "Toggle file explorer" },
+      { "<leader>ee", function()
+          -- inside a Diffview the "explorer" is its file panel
+          if package.loaded["diffview.lib"] and require("diffview.lib").get_current_view() then
+            require("diffview.actions").toggle_files()
+          else
+            vim.cmd("NvimTreeToggle")
+          end
+        end, desc = "Toggle file explorer" },
       { "<leader>ef", "<cmd>NvimTreeFindFile<cr>", desc = "Focus current file in explorer" },
       { "<leader>ec", "<cmd>NvimTreeCollapse<cr>", desc = "Collapse explorer" },
       { "<leader>eC", "<cmd>NvimTreeCollapseKeepBuffers<cr>", desc = "Collapse keeping open buffers" },
@@ -313,9 +320,25 @@ return {
         group = vim.api.nvim_create_augroup("diffview_tab_label", { clear = true }),
         callback = function() vim.schedule(diffview_label_tabs) end,
       })
+      -- Diffview doesn't react to terminal resizes: refit the panel, split the rest evenly
+      vim.api.nvim_create_autocmd("VimResized", {
+        group = vim.api.nvim_create_augroup("diffview_resize", { clear = true }),
+        callback = function()
+          local view = package.loaded["diffview.lib"] and require("diffview.lib").get_current_view()
+          if not view then return end
+          if view.panel then view.panel:resize() end
+          vim.cmd("wincmd =")
+        end,
+      })
     end,
     opts = {
       enhanced_diff_hl = true, -- resalta la palabra que cambió, no solo la línea
+      -- panel width follows the window (35 cols wide, down to 20 narrow); VimResized below
+      file_panel = {
+        win_config = function()
+          return { position = "left", width = math.max(20, math.min(35, math.floor(vim.o.columns * 0.22))) }
+        end,
+      },
       view = {
         merge_tool = { layout = "diff3_mixed" }, -- en conflictos: local | base+resultado | remoto
       },
