@@ -320,6 +320,19 @@ keymap.set("i", "<S-Tab>", "<C-d>", { desc = "Dedent line" })
 -- ponytail: no <LeftMouse> override in visual; a plain click exits visual (native).
 -- To extend a selection use Shift+click (native) or keyboard motions.
 
+-- Rueda sobre una ventana de diff: el scroll nativo solo sincroniza (scrollbind)
+-- si esa ventana es la actual; con el foco en otra (p.ej. panel de Diffview) los
+-- lados se desalinean. Se scrollea dentro de la ventana y se fuerza :syncbind.
+for key, scroll in pairs({ ["<ScrollWheelDown>"] = "3\5", ["<ScrollWheelUp>"] = "3\25" }) do
+  keymap.set({ "n", "x" }, key, function()
+    local win = vim.fn.getmousepos().winid
+    if win == 0 or not vim.wo[win].diff then
+      return vim.api.nvim_feedkeys(vim.keycode(key), "ni", false)
+    end
+    vim.api.nvim_win_call(win, function() vim.cmd("normal! " .. scroll .. "\nsyncbind") end)
+  end, { desc = "Scroll sincronizado en diffs" })
+end
+
 -- ¿Arrancamos en modo directorio? (nvim . / nvim carpeta, NO nvim archivo)
 do
   local args = vim.fn.argv()

@@ -290,6 +290,8 @@ return {
       view = {
         merge_tool = { layout = "diff3_mixed" }, -- en conflictos: local | base+resultado | remoto
       },
+      -- hjkl en un lado mueve el cursor en el otro (diff-aware: salta los huecos)
+      hooks = { diff_buf_win_enter = function(_, winid) vim.wo[winid].cursorbind = true end },
     },
     keys = {
       { "<leader>gd", "<cmd>DiffviewOpen<cr>", desc = "Diff: cambios sin commitear" },
