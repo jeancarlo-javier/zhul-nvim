@@ -58,6 +58,15 @@ local function patch_write_selection_file()
   selection._file_patched = true
   local orig = selection.send_selection_update
   selection.send_selection_update = function(sel)
+    -- Diffview panes (old revision, file panel) are diffview:// buffers Claude can't
+    -- resolve: point it at the working-tree file the view is showing.
+    if sel and sel.filePath and sel.filePath:find("^diffview://") then
+      local view = package.loaded["diffview.lib"] and require("diffview.lib").get_current_view()
+      local path = view and view.cur_entry and view.cur_entry.absolute_path
+      if type(path) == "string" then
+        sel = vim.tbl_extend("force", sel, { filePath = path, fileUrl = "file://" .. path })
+      end
+    end
     orig(sel)
     local f = selection_file()
     vim.fn.mkdir(vim.fn.fnamemodify(f, ":h"), "p")
