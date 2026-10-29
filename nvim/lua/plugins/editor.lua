@@ -285,6 +285,15 @@ return {
   {
     "sindrets/diffview.nvim",
     cmd = { "DiffviewOpen", "DiffviewFileHistory", "DiffviewClose" },
+    init = function()
+      _G.diffview_close_tab = function(tabpage) -- %@ click: minwid = tabpage handle
+        vim.schedule(function()
+          if not vim.api.nvim_tabpage_is_valid(tabpage) then return end
+          vim.api.nvim_set_current_tabpage(tabpage)
+          vim.cmd("DiffviewClose")
+        end)
+      end
+    end,
     opts = {
       enhanced_diff_hl = true, -- resalta la palabra que cambió, no solo la línea
       view = {
@@ -293,9 +302,14 @@ return {
       -- hjkl en un lado mueve el cursor en el otro (diff-aware: salta los huecos)
       hooks = {
         diff_buf_win_enter = function(_, winid) vim.wo[winid].cursorbind = true end,
-        -- no tab bar inside the diff view; its files aren't tabs (b:diffview, lua/config.lua)
-        view_enter = function() vim.o.showtabline = 0 end,
-        view_leave = function() vim.o.showtabline = 2 end,
+        -- clickable "x" right of the view's tab number (bufferline renders t:name raw)
+        -- shortcut: bufferline counts the click codes as width, so file tabs truncate a bit
+        -- early while a diff is open; upgrade to a custom tab renderer if that bites
+        view_opened = function(view)
+          local nr = vim.api.nvim_tabpage_get_number(view.tabpage)
+          vim.t[view.tabpage].name = ("%d %%%d@v:lua.diffview_close_tab@x%%X"):format(nr, view.tabpage)
+        end,
+        -- diffs aren't tabs: b:diffview keeps their files out of the tab bar (lua/config.lua)
         view_closed = function()
           for _, b in ipairs(vim.api.nvim_list_bufs()) do
             if vim.b[b].diffview then
