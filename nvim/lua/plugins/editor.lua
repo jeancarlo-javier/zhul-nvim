@@ -333,6 +333,12 @@ return {
     end,
     opts = {
       enhanced_diff_hl = true, -- resalta la palabra que cambió, no solo la línea
+      -- its <leader>e (nowait, focus panel) fires before <leader>ee could: free it
+      keymaps = {
+        view = { { "n", "<leader>e", false } },
+        file_panel = { { "n", "<leader>e", false } },
+        file_history_panel = { { "n", "<leader>e", false } },
+      },
       -- panel width follows the window (35 cols wide, down to 20 narrow); VimResized below
       file_panel = {
         win_config = function()
