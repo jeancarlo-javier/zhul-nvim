@@ -273,12 +273,16 @@ for _, lhs in ipairs({ "<M-w>", "∑" }) do
     close_tab()
   end, { desc = "Close tab" })
 end
+-- Opt+h / Opt+l: move the current tab one slot left / right (left Opt types ˙ / ¬ on ABC)
+for lhs, step in pairs({ ["<M-h>"] = -1, ["˙"] = -1, ["<M-l>"] = 1, ["¬"] = 1 }) do
+  keymap.set("n", lhs, cycle_tab(function() tab_shift(step) end), { desc = "Move tab " .. (step < 0 and "left" or "right") })
+end
 -- In insert/visual mode, without these, Opt+[ arrived as <Esc> + a pending "[". Insert
--- skips “ / ‘ / ∑ so left Opt can still type them.
-for _, lhs in ipairs({ "<M-[>", "<M-]>", "<M-Tab>", "<M-w>" }) do
+-- skips “ / ‘ / ∑ / ˙ / ¬ so left Opt can still type them.
+for _, lhs in ipairs({ "<M-[>", "<M-]>", "<M-Tab>", "<M-w>", "<M-h>", "<M-l>" }) do
   keymap.set({ "i", "x" }, lhs, "<Esc>" .. lhs, { remap = true })
 end
-for _, lhs in ipairs({ "“", "‘", "∑" }) do
+for _, lhs in ipairs({ "“", "‘", "∑", "˙", "¬" }) do
   keymap.set("x", lhs, "<Esc>" .. lhs, { remap = true })
 end
 

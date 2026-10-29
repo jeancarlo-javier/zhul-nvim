@@ -60,19 +60,32 @@ return {
           press_col = p.screenrow == 1 and p.screencol or nil
         end
       end, vim.api.nvim_create_namespace("tab_drag"))
+      -- Move tab `buf` to where tab `to` is (renumbers b:tab_order). Shared by drag and Opt+h/l.
+      local function move_tab(buf, to)
+        local ids = vim.tbl_map(function(e) return e.id end, require("bufferline").get_elements().elements)
+        local f, t = vim.fn.index(ids, buf) + 1, vim.fn.index(ids, to) + 1
+        if f == 0 or t == 0 or f == t then return false end
+        table.insert(ids, t, table.remove(ids, f)) -- right of where it was: lands after `to`
+        for i, id in ipairs(ids) do vim.b[id].tab_order = i end
+        require("bufferline.ui").refresh()
+        return true
+      end
       -- true when the release ended a tab drag (nvim-tree's own <LeftRelease> asks first)
       _G.tab_drag_release = function()
         local p, col = vim.fn.getmousepos(), press_col
         press_col = nil
         if not col or p.screenrow ~= 1 or not package.loaded["bufferline"] then return false end
         local from, to = tab_at(col), tab_at(p.screencol)
-        if not from or not to or from == to then return false end
+        if not from or not to then return false end
+        return move_tab(from, to)
+      end
+      -- current tab one slot left (-1) or right (+1); no wrap-around at the ends
+      _G.tab_shift = function(step)
+        if not package.loaded["bufferline"] then return end
         local ids = vim.tbl_map(function(e) return e.id end, require("bufferline").get_elements().elements)
-        local f, t = vim.fn.index(ids, from) + 1, vim.fn.index(ids, to) + 1
-        table.insert(ids, t, table.remove(ids, f)) -- right of where it was: lands after `to`
-        for i, id in ipairs(ids) do vim.b[id].tab_order = i end
-        require("bufferline.ui").refresh()
-        return true
+        local buf = vim.api.nvim_get_current_buf()
+        local to = ids[vim.fn.index(ids, buf) + 1 + step]
+        if to then move_tab(buf, to) end
       end
       vim.keymap.set({ "n", "x" }, "<LeftRelease>", function()
         if not tab_drag_release() then vim.api.nvim_feedkeys(vim.keycode("<LeftRelease>"), "ni", false) end
