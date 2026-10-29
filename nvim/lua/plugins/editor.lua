@@ -179,7 +179,9 @@ return {
         --   carpeta -> la abre/cierra
         --   archivo -> lo pinta en el editor pero el foco SE QUEDA en el árbol
         --              (preview), para poder seguir paseando por la lista.
-        -- Doble clic en un archivo -> lo abre de verdad y salta a él.
+        -- Doble clic en un archivo -> tab permanente (no preview); el foco sigue en el
+        --   árbol para abrir varios seguidos. Es la única vía de ratón: Warp no envía
+        --   Shift/Opt/Ctrl con el clic.
         --
         -- <LeftMouse> (el press) se mapea para posicionar el cursor a mano en vez
         -- de dejar el comportamiento por defecto: así un micro-movimiento del ratón
@@ -213,7 +215,7 @@ return {
         vim.keymap.set({ "n", "x" }, "<LeftMouse>", place_cursor,
           vim.tbl_extend("force", o, { desc = "Clic: mover el cursor" }))
 
-        local function click_open(double, pin)
+        local function click_open(double)
           -- release outside the tree (e.g. on a tab) must not open the node under the cursor
           local pos = vim.fn.getmousepos()
           if pos.winid ~= vim.api.nvim_get_current_win() or pos.line < 1 then return end
@@ -223,24 +225,15 @@ return {
             -- en el doble clic la carpeta ya la abrió/cerró el primer clic
             if not double then api.node.open.edit() end
           elseif node.type == "file" then
-            if double then api.node.open.edit() else
-              api.node.open.preview()
-              -- nvim-tree deletes its preview once hidden; ours lives until another file replaces it
-              local b = vim.fn.bufnr(node.absolute_path)
-              if b > 0 then
-                vim.bo[b].bufhidden = ""
-                if pin then vim.b[b].preview = false end -- permanent tab (preview_tabs, lua/config.lua)
-              end
+            api.node.open.preview()
+            -- nvim-tree deletes its preview once hidden; ours lives until another file replaces it
+            local b = vim.fn.bufnr(node.absolute_path)
+            if b > 0 then
+              vim.bo[b].bufhidden = ""
+              if double then vim.b[b].preview = false end -- permanent tab (preview_tabs, lua/config.lua)
             end
           end
         end
-
-        -- Opt+clic: abre el archivo como tab permanente (no preview); el foco sigue en el
-        -- árbol, como el clic simple. Shift+clic no sirve: Warp se lo queda para seleccionar.
-        vim.keymap.set({ "n", "x" }, "<M-LeftMouse>", place_cursor,
-          vim.tbl_extend("force", o, { desc = "Opt+clic: mover el cursor" }))
-        vim.keymap.set({ "n", "x" }, "<M-LeftRelease>", function() click_open(false, true) end,
-          vim.tbl_extend("force", o, { desc = "Opt+clic: abrir como tab permanente" }))
 
         vim.keymap.set({ "n", "x" }, "<LeftRelease>", function()
           if not tab_drag_release() then click_open(false) end
@@ -259,7 +252,7 @@ return {
         vim.keymap.set({ "n", "x" }, "<2-LeftMouse>", function() end,
           vim.tbl_extend("force", o, { desc = "Doble clic (el trabajo va en el release)" }))
         vim.keymap.set({ "n", "x" }, "<2-LeftRelease>", function() click_open(true) end,
-          vim.tbl_extend("force", o, { desc = "Doble clic: abrir archivo y enfocarlo" }))
+          vim.tbl_extend("force", o, { desc = "Doble clic: abrir como tab permanente" }))
       end,
     },
   },
