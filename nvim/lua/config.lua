@@ -323,13 +323,28 @@ keymap.set("i", "<S-Tab>", "<C-d>", { desc = "Dedent line" })
 -- Rueda sobre una ventana de diff: el scroll nativo solo sincroniza (scrollbind)
 -- si esa ventana es la actual; con el foco en otra (p.ej. panel de Diffview) los
 -- lados se desalinean. Se scrollea dentro de la ventana y se fuerza :syncbind.
-for key, scroll in pairs({ ["<ScrollWheelDown>"] = "3\5", ["<ScrollWheelUp>"] = "3\25" }) do
+-- :syncbind solo alinea en vertical; el horizontal copia leftcol a los demás lados.
+local wheel = {
+  ["<ScrollWheelDown>"] = "3\5", ["<ScrollWheelUp>"] = "3\25",
+  ["<ScrollWheelRight>"] = "6zl", ["<ScrollWheelLeft>"] = "6zh",
+}
+for key, scroll in pairs(wheel) do
   keymap.set({ "n", "x" }, key, function()
     local win = vim.fn.getmousepos().winid
     if win == 0 or not vim.wo[win].diff then
       return vim.api.nvim_feedkeys(vim.keycode(key), "ni", false)
     end
-    vim.api.nvim_win_call(win, function() vim.cmd("normal! " .. scroll .. "\nsyncbind") end)
+    local leftcol
+    vim.api.nvim_win_call(win, function()
+      vim.cmd("normal! " .. scroll .. "\nsyncbind")
+      leftcol = vim.fn.winsaveview().leftcol
+    end)
+    if not scroll:find("z") then return end
+    for _, w in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+      if w ~= win and vim.wo[w].diff then
+        vim.api.nvim_win_call(w, function() vim.fn.winrestview({ leftcol = leftcol }) end)
+      end
+    end
   end, { desc = "Scroll sincronizado en diffs" })
 end
 
