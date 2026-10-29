@@ -187,7 +187,7 @@ return {
         -- modo VISUAL en el árbol). Precio: no se puede arrastrar-para-seleccionar
         -- empezando dentro del árbol, donde de todas formas no sirve de nada;
         -- empezar el arrastre ya dentro del código sigue funcionando igual.
-        vim.keymap.set({ "n", "x" }, "<LeftMouse>", function()
+        local function place_cursor()
           local pos = vim.fn.getmousepos()
           -- not on text (tabline -> bufferline's "x"/tabs, winbar, statusline): native click.
           -- "i" puts it before the already-queued release; at the end it would arrive too late.
@@ -209,9 +209,11 @@ return {
           if vim.api.nvim_win_is_valid(pos.winid) then
             pcall(vim.api.nvim_set_current_win, pos.winid)
           end
-        end, vim.tbl_extend("force", o, { desc = "Clic: mover el cursor" }))
+        end
+        vim.keymap.set({ "n", "x" }, "<LeftMouse>", place_cursor,
+          vim.tbl_extend("force", o, { desc = "Clic: mover el cursor" }))
 
-        local function click_open(double)
+        local function click_open(double, pin)
           -- release outside the tree (e.g. on a tab) must not open the node under the cursor
           local pos = vim.fn.getmousepos()
           if pos.winid ~= vim.api.nvim_get_current_win() or pos.line < 1 then return end
@@ -225,10 +227,20 @@ return {
               api.node.open.preview()
               -- nvim-tree deletes its preview once hidden; ours lives until another file replaces it
               local b = vim.fn.bufnr(node.absolute_path)
-              if b > 0 then vim.bo[b].bufhidden = "" end
+              if b > 0 then
+                vim.bo[b].bufhidden = ""
+                if pin then vim.b[b].preview = false end -- permanent tab (preview_tabs, lua/config.lua)
+              end
             end
           end
         end
+
+        -- Opt+clic: abre el archivo como tab permanente (no preview); el foco sigue en el
+        -- árbol, como el clic simple. Shift+clic no sirve: Warp se lo queda para seleccionar.
+        vim.keymap.set({ "n", "x" }, "<M-LeftMouse>", place_cursor,
+          vim.tbl_extend("force", o, { desc = "Opt+clic: mover el cursor" }))
+        vim.keymap.set({ "n", "x" }, "<M-LeftRelease>", function() click_open(false, true) end,
+          vim.tbl_extend("force", o, { desc = "Opt+clic: abrir como tab permanente" }))
 
         vim.keymap.set({ "n", "x" }, "<LeftRelease>", function()
           if not tab_drag_release() then click_open(false) end
