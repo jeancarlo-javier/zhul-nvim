@@ -80,16 +80,15 @@ return {
     end,
     config = function(_, opts)
       require("bufferline").setup(opts)
-      -- Only the selected tab's right edge keeps its separator line; the rest become spaces
-      -- (same width, so click areas don't shift). bufferline has no per-tab separator option.
+      -- Only the selected tab gets a line, on its left edge: separators become spaces (same
+      -- width, so click areas don't shift) and the selected indicator (▎, near-invisible in
+      -- this colorscheme) is drawn as a separator. bufferline has no per-tab separator option.
       local render = _G.nvim_bufferline
       _G.nvim_bufferline = function()
-        local s = render()
-        local sel = s:find("BufferLineBufferSelected#", 1, true)
-        local keep = sel and s:find("%#BufferLineSeparator#", sel, true)
-        return (s:gsub("()(%%#BufferLineSeparator#)([^%%]*)", function(pos, hl, sep)
-          if pos ~= keep then return hl .. (" "):rep(vim.fn.strwidth(sep)) end
-        end))
+        local s = render():gsub("(%%#BufferLineSeparator#)([^%%]*)", function(hl, sep)
+          return hl .. (" "):rep(vim.fn.strwidth(sep))
+        end)
+        return (s:gsub("%%#BufferLineIndicatorSelected#[^%%]*", "%%#BufferLineSeparator#▏"))
       end
     end,
     opts = {
