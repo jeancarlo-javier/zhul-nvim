@@ -293,6 +293,24 @@ return {
           vim.cmd("DiffviewClose")
         end)
       end
+      -- clickable "x" right of each view's tab number (bufferline renders t:name raw). The
+      -- number is baked into t:name, so relabel whenever tabs open, close or move.
+      -- shortcut: bufferline counts the click codes as width, so file tabs truncate a bit
+      -- early while a diff is open; upgrade to a custom tab renderer if that bites
+      _G.diffview_label_tabs = function()
+        if not package.loaded["diffview.lib"] then return end
+        for _, view in ipairs(require("diffview.lib").views) do
+          local tp = view.tabpage
+          if tp and vim.api.nvim_tabpage_is_valid(tp) then
+            local nr = vim.api.nvim_tabpage_get_number(tp)
+            vim.t[tp].name = ("%d %%%d@v:lua.diffview_close_tab@x%%X"):format(nr, tp)
+          end
+        end
+      end
+      vim.api.nvim_create_autocmd({ "TabNew", "TabClosed", "TabEnter" }, {
+        group = vim.api.nvim_create_augroup("diffview_tab_label", { clear = true }),
+        callback = function() vim.schedule(diffview_label_tabs) end,
+      })
     end,
     opts = {
       enhanced_diff_hl = true, -- resalta la palabra que cambió, no solo la línea
@@ -302,13 +320,7 @@ return {
       -- hjkl en un lado mueve el cursor en el otro (diff-aware: salta los huecos)
       hooks = {
         diff_buf_win_enter = function(_, winid) vim.wo[winid].cursorbind = true end,
-        -- clickable "x" right of the view's tab number (bufferline renders t:name raw)
-        -- shortcut: bufferline counts the click codes as width, so file tabs truncate a bit
-        -- early while a diff is open; upgrade to a custom tab renderer if that bites
-        view_opened = function(view)
-          local nr = vim.api.nvim_tabpage_get_number(view.tabpage)
-          vim.t[view.tabpage].name = ("%d %%%d@v:lua.diffview_close_tab@x%%X"):format(nr, view.tabpage)
-        end,
+        view_opened = function() diffview_label_tabs() end,
         -- diffs aren't tabs: b:diffview keeps their files out of the tab bar (lua/config.lua)
         view_closed = function()
           for _, b in ipairs(vim.api.nvim_list_bufs()) do
