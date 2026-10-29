@@ -48,6 +48,7 @@ return {
         -- no tab for the empty [No Name] left after closing the last one (VSCode's empty
         -- editor); clicking it from the tree would also open it in the tree's window
         custom_filter = function(b)
+          if vim.b[b].diffview then return false end -- a Diffview pane's file, not a tab
           return vim.api.nvim_buf_get_name(b) ~= "" or vim.bo[b].modified
         end,
         -- new tabs go on the right, in the order they were opened. By id (default) or

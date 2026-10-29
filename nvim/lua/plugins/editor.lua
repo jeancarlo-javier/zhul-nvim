@@ -291,7 +291,20 @@ return {
         merge_tool = { layout = "diff3_mixed" }, -- en conflictos: local | base+resultado | remoto
       },
       -- hjkl en un lado mueve el cursor en el otro (diff-aware: salta los huecos)
-      hooks = { diff_buf_win_enter = function(_, winid) vim.wo[winid].cursorbind = true end },
+      hooks = {
+        diff_buf_win_enter = function(_, winid) vim.wo[winid].cursorbind = true end,
+        -- no tab bar inside the diff view; its files aren't tabs (b:diffview, lua/config.lua)
+        view_enter = function() vim.o.showtabline = 0 end,
+        view_leave = function() vim.o.showtabline = 2 end,
+        view_closed = function()
+          for _, b in ipairs(vim.api.nvim_list_bufs()) do
+            if vim.b[b].diffview then
+              vim.b[b].diffview = nil
+              if #vim.fn.win_findbuf(b) == 0 and not vim.bo[b].modified then pcall(vim.cmd.bdelete, b) end
+            end
+          end
+        end,
+      },
     },
     keys = {
       { "<leader>gd", "<cmd>DiffviewOpen<cr>", desc = "Diff: cambios sin commitear" },

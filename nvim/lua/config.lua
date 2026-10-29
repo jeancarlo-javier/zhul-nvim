@@ -432,6 +432,11 @@ vim.api.nvim_create_autocmd("BufReadPost", {
     local new = ev.buf
     if vim.b[new].preview ~= nil or vim.bo[new].buftype ~= "" or not vim.bo[new].buflisted then return end
     vim.b[new].preview = vim.v.vim_did_enter == 1
+    -- loaded for a Diffview pane: no tab, replaces nothing; b:diffview drops it on close
+    if package.loaded["diffview.lib"] and require("diffview.lib").get_current_view() then
+      vim.b[new].diffview = true
+      return
+    end
     if not vim.b[new].preview then return end
     vim.schedule(function() -- the new preview replaces the old one, taking its tab slot
       for _, b in ipairs(vim.api.nvim_list_bufs()) do
@@ -451,6 +456,7 @@ vim.api.nvim_create_autocmd({ "InsertEnter", "BufModifiedSet", "BufWritePre" }, 
   callback = function(ev)
     if not vim.b[ev.buf].preview or (ev.event ~= "InsertEnter" and not vim.bo[ev.buf].modified) then return end
     vim.b[ev.buf].preview = false
+    vim.b[ev.buf].diffview = nil -- edited from a diff: it's a tab now
     if vim.bo[ev.buf].bufhidden == "delete" then vim.bo[ev.buf].bufhidden = "" end -- nvim-tree's own preview flag
   end,
 })
