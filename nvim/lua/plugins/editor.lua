@@ -320,12 +320,20 @@ return {
         group = vim.api.nvim_create_augroup("diffview_tab_label", { clear = true }),
         callback = function() vim.schedule(diffview_label_tabs) end,
       })
-      -- Diffview doesn't react to terminal resizes: refit the panel, split the rest evenly
+      -- Diffview doesn't react to terminal resizes: refit the panel, split the rest evenly.
+      -- Below DIFFVIEW_NARROW columns the file panel hides so both sides stay readable.
+      _G.DIFFVIEW_NARROW = 100
       vim.api.nvim_create_autocmd("VimResized", {
         group = vim.api.nvim_create_augroup("diffview_resize", { clear = true }),
         callback = function()
           local view = package.loaded["diffview.lib"] and require("diffview.lib").get_current_view()
           if not view then return end
+          -- crossing the narrow threshold hides/shows the panel; within a side, <leader>ee rules
+          local narrow = vim.o.columns < DIFFVIEW_NARROW
+          if view.panel and narrow ~= view.was_narrow then
+            if narrow then view.panel:close() else view.panel:open() end
+          end
+          view.was_narrow = narrow
           if view.panel then view.panel:resize() end
           vim.cmd("wincmd =")
         end,
@@ -350,8 +358,16 @@ return {
       },
       -- hjkl en un lado mueve el cursor en el otro (diff-aware: salta los huecos)
       hooks = {
-        diff_buf_win_enter = function(_, winid) vim.wo[winid].cursorbind = true end,
-        view_opened = function() diffview_label_tabs() end,
+        diff_buf_win_enter = function(_, winid)
+          vim.wo[winid].cursorbind = true
+          -- prose_wrap (lua/config.lua) wraps one markdown side only: rows stop lining up
+          vim.wo[winid].wrap = false
+        end,
+        view_opened = function(view)
+          diffview_label_tabs()
+          view.was_narrow = vim.o.columns < DIFFVIEW_NARROW
+          if view.was_narrow then vim.schedule(function() view.panel:close() end) end
+        end,
         -- diffs aren't tabs: b:diffview keeps their files out of the tab bar (lua/config.lua)
         view_closed = function()
           for _, b in ipairs(vim.api.nvim_list_bufs()) do
