@@ -134,6 +134,9 @@ return {
         local api = require("nvim-tree.api")
         api.config.mappings.default_on_attach(bufnr)
 
+        -- `e` renames with the extension included (nvim-tree's default hides it).
+        vim.keymap.set("n", "e", api.fs.rename, { buffer = bufnr, desc = "Rename (with extension)" })
+
         -- Quita el mapeo por defecto de nvim-tree en <C-]> (CD: "cambiar la raíz a
         -- la carpeta bajo el cursor"). Así <C-]> sigue ciclando entre splits también
         -- desde la barra lateral (cae al mapeo global <C-w>w en vez de re-enraizar).
