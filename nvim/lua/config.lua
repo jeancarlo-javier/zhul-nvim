@@ -77,10 +77,17 @@ vim.api.nvim_create_autocmd("FileType", {
 })
 
 -- Toggle wrap manual para cualquier archivo (p.ej. un JSON de una sola línea, o
--- apagarlo en un markdown puntual). Afecta solo a la ventana actual.
+-- apagarlo en un markdown puntual). Afecta a la ventana actual; en un diff, a
+-- todos sus lados para que sigan alineados.
 keymap.set("n", "<leader>ll", function()
-  vim.opt_local.wrap = not vim.wo.wrap
-  vim.notify("Wrap: " .. (vim.wo.wrap and "ON" or "OFF"))
+  local wrap = not vim.wo.wrap
+  local diff = vim.wo.diff
+  for _, w in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+    if w == vim.api.nvim_get_current_win() or (diff and vim.wo[w].diff) then
+      vim.wo[w][0].wrap = wrap -- [0] = local, como opt_local
+    end
+  end
+  vim.notify("Wrap: " .. (wrap and "ON" or "OFF"))
 end, { desc = "Toggle wrap (cortar líneas largas)" })
 
 -- Quality of life (Neovim 0.11)
