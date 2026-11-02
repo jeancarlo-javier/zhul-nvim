@@ -217,6 +217,9 @@ return {
         end
         vim.keymap.set({ "n", "x" }, "<LeftMouse>", place_cursor,
           vim.tbl_extend("force", o, { desc = "Clic: mover el cursor" }))
+        -- the press map alone doesn't stop it: the default <LeftDrag> still starts VISUAL
+        vim.keymap.set({ "n", "x" }, "<LeftDrag>", function() end,
+          vim.tbl_extend("force", o, { desc = "Arrastre: no seleccionar en el árbol" }))
 
         local function click_open(double)
           -- release outside the tree (e.g. on a tab) must not open the node under the cursor
