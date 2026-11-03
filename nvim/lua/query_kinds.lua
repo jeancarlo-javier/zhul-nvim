@@ -18,6 +18,9 @@ M.min_subject = 0.7 -- below this the question stays nameless (a wrong name misl
 -- { id, description for the model, question, question with `name` (%s) }. Sent in both
 -- orders and averaged (see M.questions). Tuned on 77 labeled selections: 76 right.
 M.kinds = {
+  { "symbol", "Only a name or short piece picked out of a line, not whole statements: an identifier, a type in an implements/extends clause, a decorator, an argument.",
+    "¿Qué significa esto aquí y de dónde viene?",
+    "¿Qué es `%s`, de dónde viene y qué aporta aquí?" },
   { "test", "Test code: test cases or suites, assertions, mocks, fixtures, test setup or test helpers.",
     "¿Qué comportamiento verifica esta prueba y qué casos importantes no cubre?" },
   { "endpoint", "An HTTP route or API handler: registers a path and method, or handles a request and builds the response.",
@@ -61,13 +64,15 @@ M.kinds = {
 
 local STOP = {}
 for w in ([[if elseif else for while switch return catch function func fn def and or not
-  typeof sizeof in of do then end local const let var new await async]]):gmatch("%S+") do STOP[w] = true end
+  typeof sizeof in of do then end local const let var new await async implements extends
+  public private protected readonly static export import from]]):gmatch("%S+") do STOP[w] = true end
 
 local DEFINE = { "function", "def", "func", "fn", "class", "struct", "interface", "type", "enum", "trait" }
 
 -- Names the selection may be about, in order: what it defines first, then what it calls.
 -- Code finds them so the model only picks one, it never invents a name.
-function M.candidates(text, max)
+-- `bare`: also every plain identifier (for a short piece of a line, any name may be the point).
+function M.candidates(text, max, bare)
   local out, seen = {}, {}
   local function add(name, how)
     name = name:gsub("[%.:]+$", "")
@@ -86,6 +91,9 @@ function M.candidates(text, max)
   for n in text:gmatch("%f[%w_]([%a_][%w_]*)%s*=%s*async%f[%W]") do add(n, "defined in the selection") end
   for n in text:gmatch("%f[%w_]([%a_][%w_]*)%s*=%s*%b()%s*=>") do add(n, "defined in the selection") end
   for n in text:gmatch("%f[%w_]([%a_][%w_%.:]*)%s*%(") do add(n, "called in the selection") end
+  if bare then
+    for n in text:gmatch("%f[%w_]([%a_][%w_%.]*)") do add(n, "appears in the selection") end
+  end
   return out
 end
 
@@ -106,31 +114,34 @@ function M.state(s)
     file = vim.fn.fnamemodify(s.file ~= "" and s.file or "[unsaved]", ":~:."),
     language = s.ft ~= "" and s.ft or "unknown",
     context_before = slice(s.lines, s.l1 - M.context_lines, s.l1 - 1, 1000),
-    selection = sel,
+    -- charwise selection: the exact piece, plus the lines it was cut from
+    selection = s.frag and slice({ s.frag }, 1, 1, 8000) or sel,
+    selected_from = s.frag and slice(s.lines, s.l1, last, 2000) or nil,
     context_after = slice(s.lines, s.l2 + 1, s.l2 + M.context_lines, 1000),
   }
 end
 
 local KIND = "What is the code in `selection` mainly? `context_before` and `context_after` are surrounding lines, only to tell where `selection` sits; `file` and `language` say what kind of file it is."
 
-function M.questions(cands)
+function M.questions(cands, frag)
+  local instr = KIND .. (frag and " `selected_from` is the full line the `selection` was picked out of." or "")
   -- Same question twice, options in opposite orders: option order sways borderline cases
   -- (measured: 8/77 flipped), compose averages both. Runs in parallel, no extra latency.
   local fwd, rev = {}, {}
-  for i, k in ipairs(M.kinds) do
-    fwd[i] = { k[1], k[2] }
-    rev[#M.kinds - i + 1] = fwd[i]
+  for _, k in ipairs(M.kinds) do
+    if frag or k[1] ~= "symbol" then fwd[#fwd + 1] = { k[1], k[2] } end -- symbol: pieces of a line only
   end
+  for i, o in ipairs(fwd) do rev[#fwd - i + 1] = o end
   local qs = {
-    kind = { type = "choice", instructions = KIND, criteria = fwd },
-    kind_rev = { type = "choice", instructions = KIND, criteria = rev },
+    kind = { type = "choice", instructions = instr, criteria = fwd },
+    kind_rev = { type = "choice", instructions = instr, criteria = rev },
   }
   if #cands > 0 then
     local opts = {}
     for _, c in ipairs(cands) do opts[#opts + 1] = { c[1], "`" .. c[1] .. "`, " .. c[2] } end
     opts[#opts + 1] = { "none", "No single name stands out: the selection mixes several things, or it is data, config, markup or prose." }
     qs.subject = { type = "choice", criteria = opts,
-      instructions = "Which name is the code in `selection` about? If it defines a function, class or type, the name it defines. If it is statements, the called function or method whose behavior matters most to understand them. Skip language built-ins and generic standard-library helpers (pcall, print, len, map, filter, console.log, fmt.Errorf...): choose none when only those are called." }
+      instructions = "Which name is the code in `selection` about? If it is a short piece of a line, the name that piece is about. If it defines a function, class or type, the name it defines. If it is statements, the called function or method whose behavior matters most to understand them. Skip language built-ins and generic standard-library helpers (pcall, print, len, map, filter, console.log, fmt.Errorf...): choose none when only those are called." }
   end
   return qs
 end
@@ -163,7 +174,8 @@ local warned = false
 function M.pick(s, cb)
   local state = M.state(s)
   if not state.selection:find("[%w_]") then return cb(M.fallback) end -- only braces/blank lines
-  ai.judge(state, M.questions(M.candidates(state.selection)), function(answers, err)
+  local frag = state.selected_from ~= nil
+  ai.judge(state, M.questions(M.candidates(state.selection, nil, frag), frag), function(answers, err)
     if not answers then
       -- missing key = feature off, stay quiet; anything else, say it once per session
       if not warned and not err:find("TYPESAFE_API_KEY", 1, true) then

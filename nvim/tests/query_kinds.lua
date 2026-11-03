@@ -25,7 +25,11 @@ assert(K.compose({ kind = kind({ call = 0.6, errors = 0.4 }), kind_rev = kind({ 
 assert(K.compose({}) == K.fallback)
 
 local qs = K.questions({})
-assert(#qs.kind.criteria == #K.kinds and qs.kind_rev.criteria[1][1] == "other" and not qs.subject)
+assert(#qs.kind.criteria == #K.kinds - 1 and qs.kind_rev.criteria[1][1] == "other" and not qs.subject)
+assert(#K.questions({}, true).kind.criteria == #K.kinds) -- symbol only for charwise pieces
+assert(names("implements OnApplicationShutdown") == "" and
+  table.concat(vim.tbl_map(function(c) return c[1] end, K.candidates("implements OnApplicationShutdown", nil, true)), ",")
+  == "OnApplicationShutdown")
 
 local big = K.state({ file = "x.js", ft = "javascript", lines = { ("é"):rep(20000) }, l1 = 1, l2 = 1 }).selection
 assert(#big <= 8000 + #" …" and (#big - #" …") % 2 == 0) -- cut on a char boundary

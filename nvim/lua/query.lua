@@ -80,16 +80,19 @@ local function place(notes, rows)
 end
 
 -- Question about the selection (lines l1..l2): code goes in the prompt and the left pane.
-function M.ask_range(l1, l2)
+-- `frag` = exact text of a charwise selection; ignored when it is the whole lines anyway.
+function M.ask_range(l1, l2, frag)
   local sel = vim.api.nvim_buf_get_lines(0, l1 - 1, l2, false)
+  if frag and vim.trim(frag) == vim.trim(table.concat(sel, "\n")) then frag = nil end
   local file = vim.fn.expand("%:p")
   local ft = vim.bo.filetype
   local context = ("Archivo: %s (líneas %d-%d). Puedes leerlo si necesitas más contexto.\n\n```%s\n%s\n```\n\n")
     :format(file ~= "" and file or "[sin nombre]", l1, l2, ft, table.concat(sel, "\n"))
+  if frag then context = context .. ("Seleccionado dentro de esas líneas: `%s`\n\n"):format(vim.trim(frag)) end
   -- everything read now: the buffer may change while the default question is picked
   local pane = { lines = sel, ft = ft, title = ("%s:%d-%d"):format(vim.fn.expand("%:t"), l1, l2), path = file, first = l1 }
   local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
-  require("query_kinds").pick({ file = file, ft = ft, lines = lines, l1 = l1, l2 = l2 }, function(question)
+  require("query_kinds").pick({ file = file, ft = ft, lines = lines, l1 = l1, l2 = l2, frag = frag }, function(question)
     M.chat(context, question, pane)
   end)
 end
@@ -175,6 +178,9 @@ function M.chat(context, default, pane)
 
     send(q)
   end)
+  -- prefilled → start in normal mode (Enter sends, edit with c/w/A...); empty → stay in insert.
+  -- The input always starts insert, so undo it once it has.
+  if default ~= "" then vim.schedule(function() vim.cmd.stopinsert() end) end
 end
 
 return M

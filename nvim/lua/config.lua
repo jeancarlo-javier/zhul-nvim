@@ -245,8 +245,11 @@ keymap.set("n", "<leader>q", function() require("query").ask_file() end,
   { desc = "Consultar IA sobre el archivo" })
 keymap.set("x", "<leader>q", function()
   local a, b = vim.fn.line("v"), vim.fn.line(".")
+  -- charwise (v): keep the exact text too, a part of a line is a different question
+  local frag = vim.fn.mode() == "v"
+    and table.concat(vim.fn.getregion(vim.fn.getpos("v"), vim.fn.getpos("."), { type = "v" }), "\n") or nil
   vim.cmd("normal! \27") -- leave visual so the input prompt gets focus
-  require("query").ask_range(math.min(a, b), math.max(a, b))
+  require("query").ask_range(math.min(a, b), math.max(a, b), frag)
 end, { desc = "Consultar IA sobre la selección" })
 
 -- Buffer navigation
