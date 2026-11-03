@@ -281,8 +281,9 @@ return {
         local function map(l, r, desc)
           vim.keymap.set("n", l, r, { buffer = bufnr, desc = desc })
         end
-        map("]c", function() gs.nav_hunk("next") end, "Git: siguiente cambio")
-        map("[c", function() gs.nav_hunk("prev") end, "Git: cambio anterior")
+        -- target "all": also jump to staged hunks (default is unstaged only)
+        map("]c", function() gs.nav_hunk("next", { target = "all" }) end, "Git: siguiente cambio")
+        map("[c", function() gs.nav_hunk("prev", { target = "all" }) end, "Git: cambio anterior")
         map("<leader>hs", gs.stage_hunk, "Git: stage hunk")
         map("<leader>hr", gs.reset_hunk, "Git: reset hunk")
         map("<leader>hp", gs.preview_hunk, "Git: preview hunk")
