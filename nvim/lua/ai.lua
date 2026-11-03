@@ -5,6 +5,7 @@
 --
 -- API:
 --   require("ai").ask(prompt, cb)      -- cb(answer_string | nil, err_string | nil)
+--   require("ai").judge(state, questions, cb)  -- fast typed judgment (~0.4s), see M.judge
 --   require("ai").modal(title, lines, ctx?)  -- ctx = { lines, ft, title } → code pane on the left
 --                                            -- returns { set = fn(lines), set_ctx_extra = fn(lines, notes?), buf, win }
 --   notes = { { row = <0-based pane row>, text = "..." }, ... } → shown as virtual lines above
@@ -45,6 +46,57 @@ function M.ask(prompt, cb)
     end
     cb(vim.trim(res.stdout or ""))
   end))
+end
+
+-- Typed judgments through TypeSafe System One (Jev): no text, just a choice/score/yes-no
+-- with probabilities, fast enough to run before a prompt opens. Needs TYPESAFE_API_KEY.
+-- Docs: https://docs.typesafe.ai/api.md
+M.judge_model = "jev-latest"
+M.judge_timeout = 1.5 -- seconds; callers fall back to a default, so keep it short
+
+-- A Choice's options in the given order (Lua tables have none, and option order can
+-- sway the model): criteria = { { name, description }, ... }.
+local function encode_question(q)
+  local parts = {}
+  for k, v in pairs(q) do
+    local val = vim.json.encode(v)
+    if k == "criteria" and vim.islist(v) then
+      local opts = {}
+      for _, o in ipairs(v) do opts[#opts + 1] = vim.json.encode(o[1]) .. ":" .. vim.json.encode(o[2]) end
+      val = "{" .. table.concat(opts, ",") .. "}"
+    end
+    parts[#parts + 1] = vim.json.encode(k) .. ":" .. val
+  end
+  return "{" .. table.concat(parts, ",") .. "}"
+end
+
+-- questions = { id = { type = "choice"|"noul"|"score", instructions, criteria } }
+-- cb(answers_by_id | nil, err | nil, raw_response)
+function M.judge(state, questions, cb)
+  local key = vim.env.TYPESAFE_API_KEY
+  if not key or key == "" then return cb(nil, "falta TYPESAFE_API_KEY") end
+  local qs = {}
+  for id, q in pairs(questions) do qs[#qs + 1] = vim.json.encode(id) .. ":" .. encode_question(q) end
+  local body = ('{"model":%s,"state":%s,"questions":{%s}}')
+    :format(vim.json.encode(M.judge_model), vim.json.encode(state), table.concat(qs, ","))
+  -- the key goes in through stdin (curl -K -) so it never shows up in `ps`
+  local ok, err = pcall(vim.system, {
+    "curl", "-sS", "--max-time", tostring(M.judge_timeout), "-K", "-",
+    "-H", "Content-Type: application/json", "--data-binary", body,
+    "-w", "\n%{http_code}", "https://api.typesafe.ai/v1/systemone",
+  }, { text = true, stdin = ('header = "Authorization: Bearer %s"\n'):format(key) }, vim.schedule_wrap(function(res)
+    if res.code ~= 0 then
+      local msg = vim.trim(res.stderr or "")
+      return cb(nil, msg ~= "" and msg or ("curl salió con código " .. res.code))
+    end
+    local out, status = (res.stdout or ""):match("^(.*)\n(%d+)$")
+    local okj, data = pcall(vim.json.decode, out or "")
+    if status ~= "200" or not okj or type(data) ~= "table" or type(data.answers) ~= "table" then
+      return cb(nil, ("TypeSafe %s: %s"):format(status or "?", vim.trim(out or ""):sub(1, 200)))
+    end
+    cb(data.answers, nil, data)
+  end))
+  if not ok then cb(nil, tostring(err)) end -- e.g. curl missing
 end
 
 local function float(lines, ft, title, w, h, row, col, enter)

@@ -4,13 +4,12 @@
 -- AI points to (read from disk, so it's the real code, never AI-written). Built on lua/ai.lua.
 --
 -- API:
---   require("query").ask_range(l1, l2)  -- question about lines l1..l2 (prefilled)
+--   require("query").ask_range(l1, l2)  -- question about lines l1..l2 (prefilled to fit the code, see query_kinds)
 --   require("query").ask_file()         -- free question about the current file (empty input)
 
 local ai = require("ai")
 local M = {}
 
-M.default_question = "¿Qué hace esto y cómo encaja con el resto del código?"
 M.max_related_lines = 40 -- per snippet, keeps the left pane readable
 
 local PANEL_HINT = [[
@@ -87,9 +86,12 @@ function M.ask_range(l1, l2)
   local ft = vim.bo.filetype
   local context = ("Archivo: %s (líneas %d-%d). Puedes leerlo si necesitas más contexto.\n\n```%s\n%s\n```\n\n")
     :format(file ~= "" and file or "[sin nombre]", l1, l2, ft, table.concat(sel, "\n"))
-  -- label before input: it may switch buffers
-  M.chat(context, M.default_question,
-    { lines = sel, ft = ft, title = ("%s:%d-%d"):format(vim.fn.expand("%:t"), l1, l2), path = file, first = l1 })
+  -- everything read now: the buffer may change while the default question is picked
+  local pane = { lines = sel, ft = ft, title = ("%s:%d-%d"):format(vim.fn.expand("%:t"), l1, l2), path = file, first = l1 }
+  local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+  require("query_kinds").pick({ file = file, ft = ft, lines = lines, l1 = l1, l2 = l2 }, function(question)
+    M.chat(context, question, pane)
+  end)
 end
 
 -- Free question about the whole file (no selection). The AI reads it from disk; the left
