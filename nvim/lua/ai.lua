@@ -6,9 +6,25 @@
 -- API:
 --   require("ai").ask(prompt, cb)      -- cb(answer_string | nil, err_string | nil)
 --   require("ai").modal(title, lines, ctx?)  -- ctx = { lines, ft, title } → code pane on the left
---                                            -- returns { set = fn(lines), append_ctx = fn(lines), buf, win }
+--                                            -- returns { set = fn(lines), set_ctx_extra = fn(lines, notes?), buf, win }
+--   notes = { { row = <0-based pane row>, text = "..." }, ... } → shown as virtual lines above
+--   that row, so code in the pane stays the real code.
 
 local M = {}
+local NS = vim.api.nvim_create_namespace("ai_notes")
+
+local function wrap(text, width)
+  local out, cur = {}, ""
+  for word in text:gmatch("%S+") do
+    if cur ~= "" and vim.fn.strdisplaywidth(cur .. " " .. word) > width then
+      out[#out + 1], cur = cur, word
+    else
+      cur = cur == "" and word or (cur .. " " .. word)
+    end
+  end
+  if cur ~= "" then out[#out + 1] = cur end
+  return out
+end
 
 -- Command used to reach the model. cs -q has no Edit/Write/Bash, so utils can't
 -- modify anything; runs in Neovim's cwd so it can Read the project for context.
@@ -55,10 +71,9 @@ function M.modal(title, lines, ctx)
   local row, col = math.floor((vim.o.lines - h) / 2), math.floor((vim.o.columns - W) / 2)
   local wins = {}
   local w = W
-  local cbuf
+  local cbuf, lwin
   if ctx then
     local lw = math.floor(W * 0.45)
-    local lwin
     cbuf, lwin = float(ctx.lines, ctx.ft or "", ctx.title or "código", lw, h, row, col, false)
     wins[#wins + 1] = lwin
     w, col = W - lw - 2, col + lw + 2 -- +2: borders
@@ -84,11 +99,31 @@ function M.modal(title, lines, ctx)
     vim.bo[buf].modifiable = false
   end
   set(lines)
-  -- Append lines under the code pane (no-op without ctx or once closed).
-  local function append_ctx(l)
-    if cbuf and vim.api.nvim_buf_is_valid(cbuf) then vim.api.nvim_buf_set_lines(cbuf, -1, -1, false, l) end
+  -- Replace what's shown under ctx.lines in the code pane (ctx.lines always stay on top)
+  -- and all notes. No-op without ctx or once closed.
+  local function set_ctx_extra(l, notes)
+    if not (cbuf and vim.api.nvim_buf_is_valid(cbuf)) then return end
+    vim.api.nvim_buf_clear_namespace(cbuf, NS, 0, -1)
+    vim.api.nvim_buf_set_lines(cbuf, #ctx.lines, -1, false, l)
+    local width = vim.api.nvim_win_is_valid(lwin) and vim.api.nvim_win_get_width(lwin) or 60
+    local top_fill = 0
+    for _, n in ipairs(notes or {}) do
+      if n.row < vim.api.nvim_buf_line_count(cbuf) then
+        local ind = vim.api.nvim_buf_call(cbuf, function() return vim.fn.indent(n.row + 1) end)
+        local vl = {}
+        for i, s in ipairs(wrap(n.text, math.max(20, width - ind - 2))) do
+          vl[#vl + 1] = { { (" "):rep(ind) .. (i == 1 and "◆ " or "  ") .. s, "DiagnosticHint" } }
+        end
+        vim.api.nvim_buf_set_extmark(cbuf, NS, n.row, 0, { virt_lines = vl, virt_lines_above = true })
+        if n.row == 0 then top_fill = top_fill + #vl end
+      end
+    end
+    -- virt_lines above row 0 stay hidden unless the view has filler on top
+    if top_fill > 0 and vim.api.nvim_win_is_valid(lwin) then
+      vim.api.nvim_win_call(lwin, function() vim.fn.winrestview({ topline = 1, topfill = top_fill }) end)
+    end
   end
-  return { set = set, append_ctx = append_ctx, buf = buf, win = win }
+  return { set = set, set_ctx_extra = set_ctx_extra, buf = buf, win = win }
 end
 
 return M

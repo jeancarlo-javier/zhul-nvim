@@ -239,11 +239,10 @@ keymap.set("n", "<leader>tl", function() require("translate").prompt_lang() end,
 keymap.set("x", "<leader>tt", function() require("translate").selection() end,
   { desc = "Traducir selección (ES+EN)" })
 
--- Consulta IA (cs -q, solo lectura) sobre la línea actual o la selección → modal.
-keymap.set("n", "<leader>q", function()
-  local l = vim.fn.line(".")
-  require("query").ask_range(l, l)
-end, { desc = "Consultar IA sobre la línea" })
+-- Consulta IA (cs -q, solo lectura) → modal tipo chat. Con selección: sobre ese código;
+-- sin selección: pregunta libre sobre el archivo.
+keymap.set("n", "<leader>q", function() require("query").ask_file() end,
+  { desc = "Consultar IA sobre el archivo" })
 keymap.set("x", "<leader>q", function()
   local a, b = vim.fn.line("v"), vim.fn.line(".")
   vim.cmd("normal! \27") -- leave visual so the input prompt gets focus
