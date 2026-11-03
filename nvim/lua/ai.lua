@@ -6,7 +6,7 @@
 -- API:
 --   require("ai").ask(prompt, cb)      -- cb(answer_string | nil, err_string | nil)
 --   require("ai").modal(title, lines, ctx?)  -- ctx = { lines, ft, title } → code pane on the left
---                                            -- returns { set = fn(lines), buf, win }
+--                                            -- returns { set = fn(lines), append_ctx = fn(lines), buf, win }
 
 local M = {}
 
@@ -23,7 +23,9 @@ function M.ask(prompt, cb)
   local argv = vim.list_extend(vim.deepcopy(M.cmd), { prompt })
   vim.system(argv, { text = true, cwd = vim.fn.getcwd(), env = M.env }, vim.schedule_wrap(function(res)
     if res.code ~= 0 then
-      return cb(nil, vim.trim(res.stderr ~= "" and res.stderr or res.stdout or "error"))
+      local msg = vim.trim(res.stderr or "")
+      if msg == "" then msg = vim.trim(res.stdout or "") end -- "" is truthy in Lua, so no `or` chain
+      return cb(nil, msg ~= "" and msg or ("cs salió con código " .. res.code))
     end
     cb(vim.trim(res.stdout or ""))
   end))
@@ -53,9 +55,11 @@ function M.modal(title, lines, ctx)
   local row, col = math.floor((vim.o.lines - h) / 2), math.floor((vim.o.columns - W) / 2)
   local wins = {}
   local w = W
+  local cbuf
   if ctx then
     local lw = math.floor(W * 0.45)
-    local _, lwin = float(ctx.lines, ctx.ft or "", ctx.title or "código", lw, h, row, col, false)
+    local lwin
+    cbuf, lwin = float(ctx.lines, ctx.ft or "", ctx.title or "código", lw, h, row, col, false)
     wins[#wins + 1] = lwin
     w, col = W - lw - 2, col + lw + 2 -- +2: borders
   end
@@ -80,7 +84,11 @@ function M.modal(title, lines, ctx)
     vim.bo[buf].modifiable = false
   end
   set(lines)
-  return { set = set, buf = buf, win = win }
+  -- Append lines under the code pane (no-op without ctx or once closed).
+  local function append_ctx(l)
+    if cbuf and vim.api.nvim_buf_is_valid(cbuf) then vim.api.nvim_buf_set_lines(cbuf, -1, -1, false, l) end
+  end
+  return { set = set, append_ctx = append_ctx, buf = buf, win = win }
 end
 
 return M
