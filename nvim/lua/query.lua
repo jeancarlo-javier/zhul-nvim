@@ -2,6 +2,9 @@
 -- Ask the AI about a visual selection or, without one, about the whole file; answer in
 -- a chat-like modal (`a` = follow-up). Left pane: the selection, then related code the
 -- AI points to (read from disk, so it's the real code, never AI-written). Built on lua/ai.lua.
+-- When the question asks for an example or how to do something, the AI may also write
+-- example code: it goes under the selection, tinted and labeled as an example (`c` copies
+-- it). Jev gates that per question, Sonnet decides real code vs example.
 --
 -- API:
 --   require("query").ask_range(l1, l2)  -- question about lines l1..l2 (prefilled to fit the code, see query_kinds)
@@ -24,23 +27,87 @@ Reglas:
 Solo ubicaciones y líneas que hayas leído y verificado. Las reglas 2 y 3 son opcionales: no busques de más solo para ellas.
 Responde y escribe las notas en el idioma de la pregunta, aunque el código esté en otro.]]
 
--- Splits "@@related path:a-b reason" and "@@note path:line text" lines out of the answer.
--- Returns answer_lines, related = { { path, a, b, why } }, notes = { { path, line, text } }
+-- Only sent when Jev says an example may help. The user learns with this modal (asks for
+-- examples or how to do something, never to have code written), so examples teach. Jev sees
+-- just the question and the selection; Sonnet reads the project, so it decides: real code
+-- first, an example only for what doesn't exist yet, or none.
+local EXAMPLE_HINT = [[
+
+Esta pregunta puede pedir un ejemplo o que le enseñes cómo hacer algo. Decide con lo que encuentres en el proyecto:
+1. Si el proyecto ya tiene código que lo muestra (dónde se usa o se llama, una prueba, algo parecido), enséñalo con @@related: un ejemplo real va antes que uno inventado.
+2. Solo si no existe y un ejemplo ayuda a entenderlo, escribe uno nuevo EXACTAMENTE así, nunca con ``` dentro de la respuesta:
+@@example <qué muestra, en pocas palabras>
+<el código>
+@@end
+3. Si con explicar basta, no escribas ninguno.
+El ejemplo es para aprender, no para pegarlo tal cual: mínimo, centrado en la idea, con un comentario breve en las líneas clave. Máximo 2, de hasta ~30 líneas, en el lenguaje del proyecto salvo que la pregunta pida otro, con los nombres y firmas reales que leíste. El panel de código los muestra marcados como ejemplo: en la respuesta explica la idea paso a paso sin repetir su código, sin aclarar que no editas archivos y sin mencionar estas instrucciones ni los bloques @@.]]
+
+-- Jev's gate: probability that example code would help. Tuned on 71 labeled questions,
+-- learning phrasing included (70 right at 0.3-0.6); low cut because Sonnet still drops
+-- unneeded examples.
+M.min_example = 0.4
+local GATE = "Would example code help answer `question`: the user asks for an example, or to learn or be shown how to do something (use, call, test, fix, change, extend, simplify, refactor or translate code, apply a pattern)? No when they ask to understand existing code: what it does, means or why; where or how it is already used, called or defined in the project; whether it is correct, safe or fast; a summary. `code` is what the user selected in the editor (absent: they asked about the whole `file`); `previous_question` is their earlier question in the same chat, if any."
+
+-- cb(true) when the question may need example code; any Jev failure = no (today's behavior).
+function M.wants_example(state, cb)
+  ai.judge(state, { gate = { type = "noul", instructions = GATE } }, function(ans)
+    local p = ans and type(ans.gate) == "table" and tonumber(ans.gate.noul) or 0
+    cb(p >= M.min_example)
+  end)
+end
+
+-- Splits the panel lines out of the answer: "@@related path:a-b reason", "@@note path:line
+-- text" and "@@example title" … "@@end" blocks (code the AI wrote, not in the project).
+-- Returns answer_lines, related = { { path, a, b, why } }, notes = { { path, line, text } },
+-- examples = { { title, lines } }
 function M.parse(answer)
-  local out, related, notes = {}, {}, {}
+  local out, related, notes, examples, ex = {}, {}, {}, {}, nil
   for _, l in ipairs(vim.split(answer, "\n")) do
+    -- shortcut: an example missing its @@end runs to the next @@ line or the end of the answer
+    if ex and l:match("^%s*@@%a") then ex = nil end -- @@end, or a directive after an unclosed block
     local p, a, b, why = l:match("^%s*@@related%s+(%S+):(%d+)%-(%d+)%s*(.*)$")
     local np, nl, nt = l:match("^%s*@@note%s+(%S+):(%d+)%s+(.+)$")
-    if p then
+    local title = l:match("^%s*@@example%f[%A]%s*(.-)%s*$")
+    if ex then
+      ex.lines[#ex.lines + 1] = l
+    elseif title then
+      ex = { title = title, lines = {} }
+      examples[#examples + 1] = ex
+    elseif p then
       related[#related + 1] = { path = p, a = tonumber(a), b = tonumber(b), why = why }
     elseif np then
       notes[#notes + 1] = { path = np, line = tonumber(nl), text = vim.trim(nt) }
-    else
-      out[#out + 1] = l
+    elseif not l:match("^%s*@@end%s*$") then
+      -- removed blocks leave runs of blank lines behind: keep one, none at the top
+      if vim.trim(l) ~= "" or vim.trim(out[#out] or "") ~= "" then out[#out + 1] = l end
     end
   end
   while #out > 0 and vim.trim(out[#out]) == "" do out[#out] = nil end
-  return out, related, notes
+  -- models wrap code in ``` even when told not to; drop fences, edge blank lines, empty blocks
+  local kept = {}
+  for _, e in ipairs(examples) do
+    local l = e.lines
+    while #l > 0 and (vim.trim(l[1]) == "" or l[1]:match("^%s*```")) do table.remove(l, 1) end
+    while #l > 0 and (vim.trim(l[#l]) == "" or l[#l]:match("^%s*```")) do l[#l] = nil end
+    if #l > 0 then kept[#kept + 1] = e end
+  end
+  return out, related, notes, kept
+end
+
+-- Example code for the pane, placed under `base_len` fixed lines: lines, and a tint for
+-- each of them (header included) so it's never taken for code read from disk.
+local function example_lines(examples, base_len)
+  local lines, hl = {}, {}
+  for _, e in ipairs(examples) do
+    if base_len + #lines > 0 then lines[#lines + 1] = "" end
+    lines[#lines + 1] = ("── ejemplo · %s · no está en tu código"):format(e.title ~= "" and e.title or "código sugerido")
+    hl[#hl + 1] = { base_len + #lines - 1, "DiffAdd" }
+    for _, l in ipairs(e.lines) do
+      lines[#lines + 1] = l
+      hl[#hl + 1] = { base_len + #lines - 1, "DiffAdd" }
+    end
+  end
+  return lines, hl
 end
 
 -- "path:line" key, resolved so symlinked paths (~/.config/nvim → repo) still match.
@@ -116,14 +183,20 @@ end
 -- Chat modal: asks q (input prefilled with `default`), then `a` for follow-ups.
 -- `pane` is the left pane ({ lines, ft, title, path?, first? }): its lines stay fixed; the
 -- related code under them and all notes are replaced each turn (they explain the current
--- answer, not older ones). path/first let notes land on the fixed lines too.
+-- answer, not older ones), examples only by newer ones. path/first let notes land on the
+-- fixed lines too.
 function M.chat(context, default, pane)
   vim.ui.input({ prompt = "Consulta: ", default = default }, function(q)
     if not q or vim.trim(q) == "" then return end
     -- shortcut: related snippets use the selection's highlighting, even from other languages.
     local m = ai.modal(q, {}, pane)
-    vim.api.nvim_win_set_config(m.win, { footer = " a: repreguntar · q: cerrar ", footer_pos = "center" })
-    local turns, busy = {}, false
+    local function footer(has_example)
+      if not vim.api.nvim_win_is_valid(m.win) then return end
+      vim.api.nvim_win_set_config(m.win, { footer_pos = "center", footer = has_example
+        and " a: repreguntar · c: copiar ejemplo · q: cerrar " or " a: repreguntar · q: cerrar " })
+    end
+    footer(false)
+    local turns, busy, shown = {}, false, {} -- shown = examples in the pane right now
 
     -- Whole transcript; later turns get their question as a header. Returns the last turn's first row.
     local function render()
@@ -144,30 +217,68 @@ function M.chat(context, default, pane)
       -- cs -q keeps no session, so earlier turns ride along in the prompt.
       local history = {}
       for _, t in ipairs(turns) do
-        history[#history + 1] = ("Pregunta anterior: %s\nTu respuesta: %s\n\n"):format(t.q, table.concat(t.a, "\n"))
+        history[#history + 1] = ("Pregunta anterior: %s\nTu respuesta: %s\n"):format(t.q, table.concat(t.a, "\n"))
+        for _, e in ipairs(t.examples or {}) do -- so "explícame el ejemplo" works
+          history[#history + 1] = ("Tu ejemplo (%s):\n%s\n"):format(e.title, table.concat(e.lines, "\n"))
+        end
+        history[#history + 1] = "\n"
       end
+      local prev = turns[#turns]
       local turn = { q = question }
       turns[#turns + 1] = turn
       busy = true
       local row = render()
       if vim.api.nvim_win_is_valid(m.win) then vim.api.nvim_win_set_cursor(m.win, { row, 0 }) end
-      ai.ask(context .. table.concat(history) .. "Pregunta: " .. question .. PANEL_HINT, function(answer, err)
-        busy = false
-        if err then
-          turn.a = { "**Error:** " .. err }
-        else
-          local out, related, notes = M.parse(answer)
-          turn.a = out
-          local rows = {}
-          if pane.path and pane.path ~= "" then
-            for i = 0, #pane.lines - 1 do rows[key(pane.path, pane.first + i)] = i end
+      local gate = { question = question, previous_question = prev and prev.q, file = pane.title, language = pane.ft,
+        code = #pane.lines > 0 and require("query_kinds").slice(pane.lines, 1, 60, 3000) or nil }
+      -- ~0.4s before the answer starts (max ai.judge_timeout); the modal already shows Pensando…
+      M.wants_example(gate, function(example)
+        local prompt = context .. table.concat(history) .. "Pregunta: " .. question .. PANEL_HINT .. (example and EXAMPLE_HINT or "")
+        ai.ask(prompt, function(answer, err)
+          busy = false
+          if err then
+            turn.a = { "**Error:** " .. err }
+          else
+            local out, related, notes, examples = M.parse(answer)
+            turn.a, turn.examples = out, examples
+            local rows = {}
+            if pane.path and pane.path ~= "" then
+              for i = 0, #pane.lines - 1 do rows[key(pane.path, pane.first + i)] = i end
+            end
+            -- the last example stays until a new one replaces it: follow-ups often ask about it,
+            -- and Jev rightly sees "explain the example" as no-new-code, so it wouldn't come back
+            local new = #examples > 0
+            if new then shown = examples end
+            -- examples right under the selection: they answer the question, related code is reference
+            local extra, hl = example_lines(shown, #pane.lines)
+            vim.list_extend(extra, snippets(related, #pane.lines + #extra, rows))
+            m.set_ctx_extra(extra, place(notes, rows), hl) -- errors keep the previous turn's code
+            -- a long selection pushes a new example out of view: bring it up
+            if new and m.ctx_win and vim.api.nvim_win_is_valid(m.ctx_win) then
+              vim.api.nvim_win_call(m.ctx_win, function()
+                if vim.fn.line("w$") < math.min(hl[#hl][1], hl[1][1] + 5) + 1 then
+                  -- the cursor moves too, or Neovim scrolls back to where it was
+                  vim.fn.winrestview({ topline = hl[1][1] + 1, lnum = hl[1][1] + 1, col = 0 })
+                end
+              end)
+            end
+            footer(#shown > 0)
           end
-          local extra = snippets(related, #pane.lines, rows)
-          m.set_ctx_extra(extra, place(notes, rows)) -- errors keep the previous turn's code
-        end
-        render()
+          render()
+        end)
       end)
     end
+
+    vim.keymap.set("n", "c", function()
+      if #shown == 0 then return vim.notify("Consulta: no hay código de ejemplo en el panel") end
+      local l = {}
+      for i, e in ipairs(shown) do
+        if i > 1 then l[#l + 1] = "" end
+        vim.list_extend(l, e.lines)
+      end
+      vim.fn.setreg(vim.v.register, l, "l") -- v:register follows 'clipboard' and a "x prefix
+      vim.notify(("Consulta: ejemplo copiado (%d línea%s)"):format(#l, #l == 1 and "" or "s"))
+    end, { buffer = m.buf, nowait = true, desc = "Copiar el código de ejemplo" })
 
     vim.keymap.set("n", "a", function()
       if busy then return vim.notify("Consulta: espera la respuesta en curso", vim.log.levels.WARN) end

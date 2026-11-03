@@ -7,9 +7,10 @@
 --   require("ai").ask(prompt, cb)      -- cb(answer_string | nil, err_string | nil)
 --   require("ai").judge(state, questions, cb)  -- fast typed judgment (~0.4s), see M.judge
 --   require("ai").modal(title, lines, ctx?)  -- ctx = { lines, ft, title } → code pane on the left
---                                            -- returns { set = fn(lines), set_ctx_extra = fn(lines, notes?), buf, win }
+--                                            -- returns { set = fn(lines), set_ctx_extra = fn(lines, notes?, hl?), buf, win, ctx_win }
 --   notes = { { row = <0-based pane row>, text = "..." }, ... } → shown as virtual lines above
 --   that row, so code in the pane stays the real code.
+--   hl = { { <0-based pane row>, <highlight group> }, ... } → whole-line highlight.
 
 local M = {}
 local NS = vim.api.nvim_create_namespace("ai_notes")
@@ -151,12 +152,15 @@ function M.modal(title, lines, ctx)
     vim.bo[buf].modifiable = false
   end
   set(lines)
-  -- Replace what's shown under ctx.lines in the code pane (ctx.lines always stay on top)
-  -- and all notes. No-op without ctx or once closed.
-  local function set_ctx_extra(l, notes)
+  -- Replace what's shown under ctx.lines in the code pane (ctx.lines always stay on top),
+  -- all notes and line highlights. No-op without ctx or once closed.
+  local function set_ctx_extra(l, notes, hl)
     if not (cbuf and vim.api.nvim_buf_is_valid(cbuf)) then return end
     vim.api.nvim_buf_clear_namespace(cbuf, NS, 0, -1)
     vim.api.nvim_buf_set_lines(cbuf, #ctx.lines, -1, false, l)
+    for _, h in ipairs(hl or {}) do
+      vim.api.nvim_buf_set_extmark(cbuf, NS, h[1], 0, { line_hl_group = h[2] })
+    end
     local width = vim.api.nvim_win_is_valid(lwin) and vim.api.nvim_win_get_width(lwin) or 60
     local top_fill = 0
     for _, n in ipairs(notes or {}) do
@@ -175,7 +179,7 @@ function M.modal(title, lines, ctx)
       vim.api.nvim_win_call(lwin, function() vim.fn.winrestview({ topline = 1, topfill = top_fill }) end)
     end
   end
-  return { set = set, set_ctx_extra = set_ctx_extra, buf = buf, win = win }
+  return { set = set, set_ctx_extra = set_ctx_extra, buf = buf, win = win, ctx_win = lwin }
 end
 
 return M

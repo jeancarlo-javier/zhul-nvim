@@ -103,6 +103,7 @@ local function slice(lines, a, b, max)
   local t = table.concat(vim.list_slice(lines, math.max(a, 1), b), "\n")
   return #t > max and (t:sub(1, max):gsub("[\192-\255][\128-\191]*$", "") .. " …") or t
 end
+M.slice = slice -- query.lua caps the code it sends Jev the same way
 
 -- What the model sees. Path and language weigh a lot (tests, config), so they go first.
 function M.state(s)
