@@ -9,7 +9,7 @@
 local ai = require("ai")
 local M = {}
 
-M.default_question = "¿De qué trata esto?"
+M.default_question = "¿Qué hace esto y cómo encaja con el resto del código?"
 M.max_related_lines = 40 -- per snippet, keeps the left pane readable
 
 local RELATED_HINT = [[
@@ -53,13 +53,14 @@ function M.ask_range(l1, l2)
   local text = table.concat(sel, "\n")
   local file = vim.fn.expand("%:p")
   local ft = vim.bo.filetype
+  local label = ("%s:%d-%d"):format(vim.fn.expand("%:t"), l1, l2) -- before input: it may switch buffers
   vim.ui.input({ prompt = "Consulta: ", default = M.default_question }, function(q)
     if not q or vim.trim(q) == "" then return end
     local prompt = ("Archivo: %s (líneas %d-%d). Puedes leerlo si necesitas más contexto.\n\n```%s\n%s\n```\n\nPregunta: %s%s")
       :format(file ~= "" and file or "[sin nombre]", l1, l2, ft, text, q, RELATED_HINT)
     -- shortcut: related snippets use the selection's highlighting, even from other languages.
     local m = ai.modal(q, { "_Pensando…_" },
-      { lines = sel, ft = ft, title = ("%s:%d-%d"):format(vim.fn.expand("%:t"), l1, l2) })
+      { lines = sel, ft = ft, title = label })
     ai.ask(prompt, function(answer, err)
       if err then return m.set({ "**Error:** " .. err }) end
       local out, related = M.parse(answer)
