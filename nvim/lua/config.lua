@@ -239,6 +239,17 @@ keymap.set("n", "<leader>tl", function() require("translate").prompt_lang() end,
 keymap.set("x", "<leader>tt", function() require("translate").selection() end,
   { desc = "Traducir selección (ES+EN)" })
 
+-- Consulta IA (cs -q, solo lectura) sobre la línea actual o la selección → modal.
+keymap.set("n", "<leader>q", function()
+  local l = vim.fn.line(".")
+  require("query").ask_range(l, l)
+end, { desc = "Consultar IA sobre la línea" })
+keymap.set("x", "<leader>q", function()
+  local a, b = vim.fn.line("v"), vim.fn.line(".")
+  vim.cmd("normal! \27") -- leave visual so the input prompt gets focus
+  require("query").ask_range(math.min(a, b), math.max(a, b))
+end, { desc = "Consultar IA sobre la selección" })
+
 -- Buffer navigation
 -- BufferLineCycle follows the tab bar's order (custom sort_by); :bnext follows buffer numbers
 keymap.set("n", "<S-h>", "<cmd>BufferLineCyclePrev<CR>", { desc = "Previous buffer" })
