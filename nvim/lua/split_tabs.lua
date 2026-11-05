@@ -88,7 +88,13 @@ function M.label(buf)
     local n = api.nvim_buf_get_name(api.nvim_win_get_buf(w))
     names[#names + 1] = n ~= "" and vim.fn.fnamemodify(n, ":t") or "Sin nombre"
   end
-  return table.concat(names, " · ")
+  -- too long for the bar (max_name_length, lua/plugins/ui.lua): whole names, then "+N"
+  local label, max = table.concat(names, " · "), 36
+  for n = #names - 1, 1, -1 do
+    if vim.fn.strdisplaywidth(label) <= max then break end
+    label = table.concat(names, " · ", 1, n) .. " +" .. (#names - n)
+  end
+  return label
 end
 
 -- The bar item that is open now: the split tab's placeholder, or home's file.
