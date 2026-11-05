@@ -218,10 +218,11 @@ keymap.set("n", "<C-Left>", "<cmd>vertical resize -2<CR>", { desc = "Más angost
 keymap.set("n", "<C-Right>", "<cmd>vertical resize +2<CR>", { desc = "Más ancho" })
 
 -- Tab management
-keymap.set("n", "<leader>to", "<cmd>tabnew<CR>", { desc = "Open new tab" })
-keymap.set("n", "<leader>tx", "<cmd>tabclose<CR>", { desc = "Close current tab" })
-keymap.set("n", "<leader>tn", "<cmd>tabn<CR>", { desc = "Go to next tab" })
-keymap.set("n", "<leader>tp", "<cmd>tabp<CR>", { desc = "Go to previous tab" })
+-- same tabs as the bar (files and split tabs, lua/split_tabs.lua)
+keymap.set("n", "<leader>to", function() require("split_tabs").new_tab() end, { desc = "Open new tab" })
+keymap.set("n", "<leader>tx", function() require("split_tabs").close() end, { desc = "Close current tab" })
+keymap.set("n", "<leader>tn", function() require("split_tabs").cycle(1) end, { desc = "Go to next tab" })
+keymap.set("n", "<leader>tp", function() require("split_tabs").cycle(-1) end, { desc = "Go to previous tab" })
 
 -- Traductor (translate-shell) — resolver una palabra sin salir de Neovim.
 -- Convive con los atajos de pestañas de arriba (to/tx/tn/tp). El resultado sale en
@@ -252,54 +253,33 @@ keymap.set("x", "<leader>q", function()
   require("query").ask_range(math.min(a, b), math.max(a, b), frag)
 end, { desc = "Consultar IA sobre la selección" })
 
--- Buffer navigation
--- BufferLineCycle follows the tab bar's order (custom sort_by); :bnext follows buffer numbers
-keymap.set("n", "<S-h>", "<cmd>BufferLineCyclePrev<CR>", { desc = "Previous buffer" })
-keymap.set("n", "<S-l>", "<cmd>BufferLineCycleNext<CR>", { desc = "Next buffer" })
--- From the tree (focus stays there after a preview click) BufferLineCycle finds no current
--- tab and does nothing: move to the editor first (previous window, else any file window).
-local function cycle_tab(cmd)
-  return function()
-    if not vim.bo.buflisted then
-      local wins = vim.api.nvim_tabpage_list_wins(0)
-      table.insert(wins, 1, vim.fn.win_getid(vim.fn.winnr("#")))
-      for _, w in ipairs(wins) do
-        if w ~= 0 and vim.bo[vim.api.nvim_win_get_buf(w)].buflisted then
-          vim.api.nvim_set_current_win(w)
-          break
-        end
-      end
-    end
-    if type(cmd) == "function" then cmd() else vim.cmd(cmd) end
-  end
-end
+-- Tab navigation (lua/split_tabs.lua): a split layout is one tab, next to the file tabs.
+-- Cycling follows the bar's order (custom sort_by) and walks into split tabs too.
+local tabs = require("split_tabs")
+tabs.setup()
+keymap.set("n", "<S-h>", function() tabs.cycle(-1) end, { desc = "Previous tab" })
+keymap.set("n", "<S-l>", function() tabs.cycle(1) end, { desc = "Next tab" })
 -- Opt+[ / Opt+] like VSCode. Right Opt is Meta in Warp (<M-[>); left Opt types “ / ‘ on ABC
 for _, lhs in ipairs({ "<M-[>", "“" }) do
-  keymap.set("n", lhs, cycle_tab("BufferLineCyclePrev"), { desc = "Previous tab" })
+  keymap.set("n", lhs, function() tabs.cycle(-1) end, { desc = "Previous tab" })
 end
 for _, lhs in ipairs({ "<M-]>", "‘" }) do
-  keymap.set("n", lhs, cycle_tab("BufferLineCycleNext"), { desc = "Next tab" })
+  keymap.set("n", lhs, function() tabs.cycle(1) end, { desc = "Next tab" })
 end
 -- Opt+Tab like VSCode's Ctrl+Tab: jump to the last used tab
 keymap.set("n", "<M-Tab>", "<cmd>silent! buffer #<CR>", { desc = "Last used tab" })
--- Opt+w like VSCode's Cmd+W: close the current tab (the whole view inside a Diffview).
--- Left Opt+w types ∑ on ABC.
-local close_tab = cycle_tab(function() Snacks.bufdelete() end)
+-- Opt+w like VSCode's Cmd+W: close the current file tab, or the current split and its file
+-- in a split tab (the whole view inside a Diffview). Left Opt+w types ∑ on ABC.
 for _, lhs in ipairs({ "<M-w>", "∑" }) do
   keymap.set("n", lhs, function()
     if package.loaded["diffview.lib"] and require("diffview.lib").get_current_view() then
       return vim.cmd("DiffviewClose")
     end
-    -- an empty split ([No Name], nothing typed) has no tab to close: close the split itself
-    if vim.bo.buftype == "" and vim.api.nvim_buf_get_name(0) == "" and not vim.bo.modified then
-      local editors = vim.tbl_filter(function(w)
-        return vim.api.nvim_win_get_config(w).relative == "" and vim.bo[vim.api.nvim_win_get_buf(w)].buftype == ""
-      end, vim.api.nvim_tabpage_list_wins(0))
-      if #editors > 1 then return vim.cmd.close() end
-    end
-    close_tab()
+    tabs.close()
   end, { desc = "Close tab" })
 end
+-- Opt+n: new empty tab (left Opt+n is a dead key on ABC, so right Opt only)
+keymap.set("n", "<M-n>", tabs.new_tab, { desc = "New empty tab" })
 -- Opt+q: leave diff mode back to the plain file (gitsigns <space>hd split or a Diffview).
 -- Left Opt+q types œ on ABC.
 for _, lhs in ipairs({ "<M-q>", "œ" }) do
@@ -317,11 +297,11 @@ for _, lhs in ipairs({ "<M-q>", "œ" }) do
 end
 -- Opt+h / Opt+l: move the current tab one slot left / right (left Opt types ˙ / ¬ on ABC)
 for lhs, step in pairs({ ["<M-h>"] = -1, ["˙"] = -1, ["<M-l>"] = 1, ["¬"] = 1 }) do
-  keymap.set("n", lhs, cycle_tab(function() tab_shift(step) end), { desc = "Move tab " .. (step < 0 and "left" or "right") })
+  keymap.set("n", lhs, function() tabs.move(step) end, { desc = "Move tab " .. (step < 0 and "left" or "right") })
 end
 -- In insert/visual mode, without these, Opt+[ arrived as <Esc> + a pending "[". Insert
 -- skips “ / ‘ / ∑ / œ / ˙ / ¬ so left Opt can still type them.
-for _, lhs in ipairs({ "<M-[>", "<M-]>", "<M-Tab>", "<M-w>", "<M-q>", "<M-h>", "<M-l>" }) do
+for _, lhs in ipairs({ "<M-[>", "<M-]>", "<M-Tab>", "<M-w>", "<M-n>", "<M-q>", "<M-h>", "<M-l>" }) do
   keymap.set({ "i", "x" }, lhs, "<Esc>" .. lhs, { remap = true })
 end
 for _, lhs in ipairs({ "“", "‘", "∑", "œ", "˙", "¬" }) do
@@ -439,6 +419,7 @@ vim.api.nvim_create_autocmd("QuitPre", {
   group = vim.api.nvim_create_augroup("quit_keeps_editor", { clear = true }),
   callback = function()
     if vim.bo.buftype ~= "" or vim.api.nvim_win_get_config(0).relative ~= "" then return end
+    if require("split_tabs").is_split() then return end -- a split tab folds itself (lua/split_tabs.lua)
     local win, buf, alt = vim.api.nvim_get_current_win(), vim.api.nvim_get_current_buf(), vim.fn.bufnr("#")
     vim.schedule(function() -- after :q has run
       if vim.api.nvim_win_is_valid(win) then return end -- :q failed or didn't close it
@@ -476,6 +457,7 @@ vim.api.nvim_create_autocmd("BufHidden", {
   callback = function(ev)
     local b = ev.buf
     if ev.file ~= "" or vim.bo[b].buftype ~= "" or not vim.bo[b].buflisted then return end
+    if vim.b[b].empty_tab then return end -- Opt+n's tab stays until closed or replaced
     vim.schedule(function()
       if not vim.api.nvim_buf_is_valid(b) or #vim.fn.win_findbuf(b) > 0 or vim.bo[b].modified then return end
       if vim.api.nvim_buf_line_count(b) > 1 or vim.api.nvim_buf_get_lines(b, 0, 1, false)[1] ~= "" then return end

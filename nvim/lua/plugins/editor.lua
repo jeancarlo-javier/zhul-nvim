@@ -83,6 +83,8 @@ return {
       hijack_netrw = true, -- reemplaza al explorador viejo (netrw)
       hijack_directories = { enable = true, auto_open = true }, -- `nvim .` abre el árbol
       sync_root_with_cwd = true, -- mantiene la raíz sincronizada al cambiar directorio
+      -- the tree follows you into split tabs (lua/split_tabs.lua), opened or closed in all
+      tab = { sync = { open = true, close = true } },
       update_focused_file = {
         enable = true, -- despliega carpetas y enfoca el archivo activo al abrirlo
         update_root = {

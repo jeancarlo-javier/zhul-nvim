@@ -66,7 +66,7 @@ function M.render(winid)
   local fullname = vim.api.nvim_buf_get_name(buf)
   -- empty editor after closing every tab: nothing to name (kept blank, not removed, so the
   -- layout doesn't jump when you start typing)
-  if fullname == "" and not vim.bo[buf].modified then return "" end
+  if fullname == "" and not vim.bo[buf].modified and not vim.b[buf].empty_tab then return "" end
   local filename = fullname ~= "" and vim.fn.fnamemodify(fullname, ":t") or "[Sin nombre]"
   local parent = fullname ~= "" and vim.fn.fnamemodify(fullname, ":h:t") or ""
 
@@ -108,6 +108,8 @@ function M.render(winid)
   if vim.bo[buf].modified then
     left = left .. " %#WinbarModified#●%*"
   end
+  -- "x" like a tab's: closes this split and its file (a file tab in the main tabpage)
+  left = left .. string.format("  %%%d@v:lua.winbar_close@%%#WinbarPath#x%%*%%X", win)
 
   -- Derecha: cambios de git.
   local parts = {}
@@ -137,6 +139,13 @@ local function refresh()
         or ""
     end
   end
+end
+
+-- %@ click on the "x": minwid = the window id
+_G.winbar_close = function(win)
+  vim.schedule(function()
+    if vim.api.nvim_win_is_valid(win) then require("split_tabs").close_window(win) end
+  end)
 end
 
 function M.setup()

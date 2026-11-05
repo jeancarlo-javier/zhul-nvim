@@ -64,16 +64,6 @@ return {
           press_col = p.screenrow == 1 and p.screencol or nil
         end
       end, vim.api.nvim_create_namespace("tab_drag"))
-      -- Move tab `buf` to where tab `to` is (renumbers b:tab_order). Shared by drag and Opt+h/l.
-      local function move_tab(buf, to)
-        local ids = vim.tbl_map(function(e) return e.id end, require("bufferline").get_elements().elements)
-        local f, t = vim.fn.index(ids, buf) + 1, vim.fn.index(ids, to) + 1
-        if f == 0 or t == 0 or f == t then return false end
-        table.insert(ids, t, table.remove(ids, f)) -- right of where it was: lands after `to`
-        for i, id in ipairs(ids) do vim.b[id].tab_order = i end
-        require("bufferline.ui").refresh()
-        return true
-      end
       -- true when the release ended a tab drag (nvim-tree's own <LeftRelease> asks first)
       _G.tab_drag_release = function()
         local p, col = vim.fn.getmousepos(), press_col
@@ -81,15 +71,7 @@ return {
         if not col or p.screenrow ~= 1 or not package.loaded["bufferline"] then return false end
         local from, to = tab_at(col), tab_at(p.screencol)
         if not from or not to then return false end
-        return move_tab(from, to)
-      end
-      -- current tab one slot left (-1) or right (+1); no wrap-around at the ends
-      _G.tab_shift = function(step)
-        if not package.loaded["bufferline"] then return end
-        local ids = vim.tbl_map(function(e) return e.id end, require("bufferline").get_elements().elements)
-        local buf = vim.api.nvim_get_current_buf()
-        local to = ids[vim.fn.index(ids, buf) + 1 + step]
-        if to then move_tab(buf, to) end
+        return require("split_tabs").move_to(from, to)
       end
       vim.keymap.set({ "n", "x" }, "<LeftRelease>", function()
         if not tab_drag_release() then vim.api.nvim_feedkeys(vim.keycode("<LeftRelease>"), "ni", false) end
@@ -97,6 +79,20 @@ return {
     end,
     config = function(_, opts)
       require("bufferline").setup(opts)
+      -- A split tab (lua/split_tabs.lua) is a placeholder buffer: it shows as selected while
+      -- its tabpage is the current one, and its tabpage gets no "1 2" indicator on the right.
+      local tabs = require("split_tabs")
+      local Buffer = require("bufferline.models").Buffer
+      local current, visible = Buffer.current, Buffer.visible
+      local function open_split(self) return vim.b[self.id].split_tab == vim.api.nvim_get_current_tabpage() end
+      function Buffer:current() return current(self) or open_split(self) end
+      function Buffer:visible() return visible(self) or open_split(self) end
+      local tabpages = require("bufferline.tabpages")
+      local get = tabpages.get
+      tabpages.get = function()
+        local handles = vim.api.nvim_list_tabpages()
+        return vim.tbl_filter(function(t) return not tabs.is_split(handles[t.id]) end, get())
+      end
       -- Only the selected tab gets a line, on its left edge: separators become spaces (same
       -- width, so click areas don't shift) and the selected indicator (▎, near-invisible in
       -- this colorscheme) is drawn as a separator. bufferline has no per-tab separator option.
@@ -110,19 +106,28 @@ return {
     end,
     opts = {
       options = {
-        -- Snacks.bufdelete cierra el buffer sin romper el layout de ventanas
-        close_command = function(n) Snacks.bufdelete(n) end,
-        right_mouse_command = function(n) Snacks.bufdelete(n) end,
+        -- closing, clicking and cycling know split tabs (lua/split_tabs.lua): a click opens
+        -- the file in home's editor (not in the tree or a split), the "x" closes a split tab
+        -- with its files, and a file tab without breaking the window layout
+        close_command = function(n) require("split_tabs").close_item(n) end,
+        right_mouse_command = function(n) require("split_tabs").close_item(n) end,
+        left_mouse_command = function(n) require("split_tabs").open(n) end,
         -- no tab for the empty [No Name] left after closing the last one (VSCode's empty
-        -- editor); clicking it from the tree would also open it in the tree's window
+        -- editor), for revisions (gitsigns <space>hd) nor for files shown inside a split tab
         custom_filter = function(b)
           if vim.b[b].diffview then return false end -- a Diffview pane's file, not a tab
-          -- the old revision gitsigns' diffthis (<space>hd) opens beside the file, not a tab either
-          if vim.api.nvim_buf_get_name(b):find("^gitsigns://") then return false end
           -- inside a Diffview only the tab numbers show: a file tab clicked there opens in a diff pane
           if package.loaded["diffview.lib"] and require("diffview.lib").get_current_view() then return false end
-          return vim.api.nvim_buf_get_name(b) ~= "" or vim.bo[b].modified
+          return require("split_tabs").is_file_tab(b)
         end,
+        name_formatter = function(b)
+          if vim.b[b.bufnr].split_tab then return require("split_tabs").label(b.bufnr) end
+          if b.path == "" then return "Sin nombre" end -- Opt+n's empty tab
+        end,
+        get_element_icon = function(e)
+          if e.filetype == "splittab" then return "◫", "Directory" end
+        end,
+        max_name_length = 36, -- a split tab's label lists its files
         -- new tabs go on the right, in the order they were opened. By id (default) or
         -- "insert_at_end" (by id after one redraw), a reopened file keeps its old buffer
         -- number and jumped back to the left.
