@@ -282,13 +282,15 @@ end
 for _, lhs in ipairs({ "<M-t>", "†" }) do
   keymap.set("n", lhs, tabs.new_tab, { desc = "New empty tab" })
 end
--- Opt+q: leave diff mode back to the plain file (gitsigns <space>hd split or a Diffview).
--- Left Opt+q types œ on ABC.
+-- Opt+q: leave diff mode back to the plain file (gitsigns <space>hd tab or a Diffview); in a
+-- split tab, close the whole tab with its splits. Left Opt+q types œ on ABC.
 for _, lhs in ipairs({ "<M-q>", "œ" }) do
   keymap.set("n", lhs, function()
     if package.loaded["diffview.lib"] and require("diffview.lib").get_current_view() then
       return vim.cmd("DiffviewClose")
     end
+    local pb = tabs.is_split() and vim.t.split_tab_buf
+    if pb and vim.bo[pb].filetype == "splittab" then return tabs.close_tab(pb) end
     for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
       if vim.api.nvim_buf_get_name(vim.api.nvim_win_get_buf(win)):find("^gitsigns://") then
         pcall(vim.api.nvim_win_close, win, true) -- fails only if it is the last window
