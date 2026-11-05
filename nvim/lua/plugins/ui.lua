@@ -126,6 +126,7 @@ return {
         end,
         get_element_icon = function(e)
           if e.filetype == "splittab" then return "◫", "Directory" end
+          if e.filetype == "difftab" then return "±", "DiffChange" end -- gitsigns <space>hd
         end,
         max_name_length = 36, -- a split tab's label lists its files
         -- new tabs go on the right, in the order they were opened. By id (default) or

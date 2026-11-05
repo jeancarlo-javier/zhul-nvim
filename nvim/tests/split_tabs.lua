@@ -109,13 +109,36 @@ settle()
 assert(S.is_split(0) and vim.bo[d].buflisted, "cancel keeps the split and the file")
 vim.fn.confirm = confirm
 
--- a diff split (gitsigns <space>hd) stays in home
+-- a gitsigns diff (<space>hd) becomes its own tab, in the file's slot; leaving it folds back
 S.close_item(vim.t.split_tab_buf)
 settle()
 assert(tabs() == 1)
+local f = api.nvim_get_current_buf()
+local slot = vim.b[f].tab_order
 vim.cmd("diffthis | vnew | file gitsigns:///x//:0:y | diffthis")
 settle()
-assert(tabs() == 1, "diff stays in place")
+assert(tabs() == 2 and S.is_split(0), "diff became its own tab")
+assert(vim.bo[vim.t.split_tab_buf].filetype == "difftab" and vim.b[vim.t.split_tab_buf].tab_order == slot)
+local diffs = vim.tbl_filter(function(w) return vim.wo[w].diff end, api.nvim_tabpage_list_wins(0))
+assert(#diffs == 2, "both sides still diffed in the new tab")
+for _, w in ipairs(api.nvim_tabpage_list_wins(home)) do
+  assert(not vim.wo[w].diff, "home left without diff")
+end
+S.cycle(1)
+assert(api.nvim_get_current_tabpage() == home, "cycling leaves the diff behind")
+S.cycle(-1)
+assert(S.is_split(0), "and comes back to it")
+for _, w in ipairs(api.nvim_tabpage_list_wins(0)) do -- Opt+q
+  if api.nvim_buf_get_name(api.nvim_win_get_buf(w)):find("^gitsigns://") then api.nvim_win_close(w, true) end
+end
+vim.cmd("diffoff!")
+settle()
+assert(tabs() == 1 and api.nvim_get_current_buf() == f and vim.b[f].tab_order == slot, "folded back to the file tab")
+
+-- another tool's diff with a scratch side (Claude's proposed change) stays in place
+vim.cmd("diffthis | vnew | setlocal buftype=nofile | diffthis")
+settle()
+assert(tabs() == 1, "scratch diff stays in home")
 assert(api.nvim_win_is_valid(tree))
 
 print("split_tabs: ok")

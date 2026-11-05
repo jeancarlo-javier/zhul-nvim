@@ -301,7 +301,10 @@ local function build(node, win, info, map)
   if node[1] == "leaf" then
     local d = info[node[2]]
     api.nvim_win_set_buf(win, d.buf)
-    api.nvim_win_call(win, function() vim.fn.winrestview(d.view) end)
+    api.nvim_win_call(win, function()
+      vim.fn.winrestview(d.view)
+      if d.diff then vim.cmd("diffthis") end
+    end)
     map[node[2]] = win
     return
   end
@@ -313,23 +316,30 @@ local function build(node, win, info, map)
   for i, child in ipairs(node[2]) do build(child, wins[i], info, map) end
 end
 
--- Home got a second editor window: move its editors to a new split tab.
+local function is_revision(win) return api.nvim_buf_get_name(api.nvim_win_get_buf(win)):find("^gitsigns://") ~= nil end
+
+-- Home got a second editor window, or a gitsigns diff (<space>hd): move them to a new tab.
 local function convert()
   local tp = api.nvim_get_current_tabpage()
   if busy or tp ~= M.home() or M.is_split(tp) or in_diffview(tp) then return end
+  local eds, revs = editors(tp), {}
   for _, w in ipairs(api.nvim_tabpage_list_wins(tp)) do
-    if vim.wo[w].diff then return end -- a diff (gitsigns <space>hd, Claude) stays in place
+    if is_revision(w) then
+      revs[#revs + 1] = w
+    elseif vim.wo[w].diff and not is_editor(w) then
+      return -- another tool's diff (Claude's proposed change) keeps its windows where they are
+    end
   end
-  local eds = editors(tp)
-  if #eds < 2 then return end
+  if #eds < 2 and #revs == 0 then return end
+  if #eds == 0 then return end
+  local moved = vim.list_extend(vim.list_slice(eds), revs)
   local cur = api.nvim_get_current_win()
-  local focus = vim.tbl_contains(eds, cur) and cur or eds[#eds]
-  local keep = (home_win and home_win ~= focus and vim.tbl_contains(eds, home_win)) and home_win
-    or (eds[1] ~= focus and eds[1] or eds[2])
+  local focus = vim.tbl_contains(moved, cur) and cur or eds[#eds]
+  local keep = (home_win and vim.tbl_contains(eds, home_win)) and home_win or eds[1]
   local info, set = {}, {}
-  for _, w in ipairs(eds) do
+  for _, w in ipairs(moved) do
     set[w] = true
-    info[w] = { buf = api.nvim_win_get_buf(w), view = api.nvim_win_call(w, vim.fn.winsaveview) }
+    info[w] = { buf = api.nvim_win_get_buf(w), view = api.nvim_win_call(w, vim.fn.winsaveview), diff = vim.wo[w].diff }
     vim.b[info[w].buf].preview = false -- a file put in a split is being worked on: pinned (lua/config.lua)
   end
   local layout = prune(vim.fn.winlayout(api.nvim_tabpage_get_number(tp)), set)
@@ -343,14 +353,15 @@ local function convert()
     build(layout, w0, info, map)
     vim.cmd("wincmd =")
     local pb = api.nvim_create_buf(true, true) -- listed, nofile, hidden when not shown
-    vim.bo[pb].filetype = "splittab"
+    vim.bo[pb].filetype = #revs > 0 and "difftab" or "splittab"
     vim.b[pb].split_tab = new_tp
     vim.b[pb].tab_order = vim.b[info[keep].buf].tab_order -- the tab sits where the split file was
     vim.t[new_tp].split_tab_buf = pb
     -- home back to a single editor, showing the most recent file not in a split
-    for _, w in ipairs(eds) do
+    for _, w in ipairs(moved) do
       if w ~= keep then pcall(api.nvim_win_close, w, true) end
     end
+    if vim.wo[keep].diff then api.nvim_win_call(keep, function() vim.cmd("diffoff") end) end
     api.nvim_win_set_buf(keep, recent_file({}) or api.nvim_create_buf(true, false))
     home_win = keep
     api.nvim_set_current_win(map[focus] or w0)
@@ -384,6 +395,11 @@ function M.setup()
   api.nvim_create_autocmd("WinNew", {
     group = grp,
     callback = function() vim.schedule(convert) end, -- once the new window has its file
+  })
+  api.nvim_create_autocmd("OptionSet", { -- gitsigns turns diff on after creating its window
+    group = grp,
+    pattern = "diff",
+    callback = function() vim.schedule(convert) end,
   })
   api.nvim_create_autocmd({ "WinEnter", "BufEnter" }, {
     group = grp,
