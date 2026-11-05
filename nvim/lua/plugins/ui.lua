@@ -113,6 +113,8 @@ return {
         -- editor); clicking it from the tree would also open it in the tree's window
         custom_filter = function(b)
           if vim.b[b].diffview then return false end -- a Diffview pane's file, not a tab
+          -- the old revision gitsigns' diffthis (<space>hd) opens beside the file, not a tab either
+          if vim.api.nvim_buf_get_name(b):find("^gitsigns://") then return false end
           -- inside a Diffview only the tab numbers show: a file tab clicked there opens in a diff pane
           if package.loaded["diffview.lib"] and require("diffview.lib").get_current_view() then return false end
           return vim.api.nvim_buf_get_name(b) ~= "" or vim.bo[b].modified

@@ -293,16 +293,31 @@ for _, lhs in ipairs({ "<M-w>", "∑" }) do
     close_tab()
   end, { desc = "Close tab" })
 end
+-- Opt+q: leave diff mode back to the plain file (gitsigns <space>hd split or a Diffview).
+-- Left Opt+q types œ on ABC.
+for _, lhs in ipairs({ "<M-q>", "œ" }) do
+  keymap.set("n", lhs, function()
+    if package.loaded["diffview.lib"] and require("diffview.lib").get_current_view() then
+      return vim.cmd("DiffviewClose")
+    end
+    for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+      if vim.api.nvim_buf_get_name(vim.api.nvim_win_get_buf(win)):find("^gitsigns://") then
+        pcall(vim.api.nvim_win_close, win, true) -- fails only if it is the last window
+      end
+    end
+    vim.cmd("diffoff!")
+  end, { desc = "Close diff" })
+end
 -- Opt+h / Opt+l: move the current tab one slot left / right (left Opt types ˙ / ¬ on ABC)
 for lhs, step in pairs({ ["<M-h>"] = -1, ["˙"] = -1, ["<M-l>"] = 1, ["¬"] = 1 }) do
   keymap.set("n", lhs, cycle_tab(function() tab_shift(step) end), { desc = "Move tab " .. (step < 0 and "left" or "right") })
 end
 -- In insert/visual mode, without these, Opt+[ arrived as <Esc> + a pending "[". Insert
--- skips “ / ‘ / ∑ / ˙ / ¬ so left Opt can still type them.
-for _, lhs in ipairs({ "<M-[>", "<M-]>", "<M-Tab>", "<M-w>", "<M-h>", "<M-l>" }) do
+-- skips “ / ‘ / ∑ / œ / ˙ / ¬ so left Opt can still type them.
+for _, lhs in ipairs({ "<M-[>", "<M-]>", "<M-Tab>", "<M-w>", "<M-q>", "<M-h>", "<M-l>" }) do
   keymap.set({ "i", "x" }, lhs, "<Esc>" .. lhs, { remap = true })
 end
-for _, lhs in ipairs({ "“", "‘", "∑", "˙", "¬" }) do
+for _, lhs in ipairs({ "“", "‘", "∑", "œ", "˙", "¬" }) do
   keymap.set("x", lhs, "<Esc>" .. lhs, { remap = true })
 end
 
