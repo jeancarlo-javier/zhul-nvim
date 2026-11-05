@@ -153,13 +153,47 @@ function M.cycle(step)
   M.open(ids[i > 0 and (i - 1 + step) % #ids + 1 or (step > 0 and 1 or #ids)])
 end
 
--- Opt+n: a new empty file tab in home. It is a preview (lua/config.lua): the next file
+-- Opt+t: a new empty file tab in home. It is a preview (lua/config.lua): the next file
 -- opened takes its place, and typing in it pins it.
 function M.new_tab()
   local buf = api.nvim_create_buf(true, false)
   vim.b[buf].empty_tab = true
   vim.b[buf].preview = true
   M.open(buf)
+end
+
+-- nvim-tree's "Pick window" (its window_picker.picker): a letter per split, shown in its
+-- statusline like nvim-tree's own, plus n to open the file in a new tab. nil = cancelled.
+local PICK_CHARS = "ABCDEFGHIJKLMOPQRSTUVWXYZ" -- no N: n is the new tab
+function M.pick_window()
+  local wins = vim.tbl_filter(is_editor, api.nvim_tabpage_list_wins(0))
+  if #wins <= 1 then return wins[1] or -1 end -- -1: nvim-tree's own fallback
+  local laststatus, saved = vim.o.laststatus, {}
+  vim.o.laststatus = 2 -- the global statusline (lualine) can't show one letter per split
+  for _, w in ipairs(api.nvim_tabpage_list_wins(0)) do -- the tree's gets blank, like nvim-tree's picker
+    saved[w] = vim.wo[w].statusline
+    vim.wo[w].statusline = " "
+  end
+  for i, w in ipairs(wins) do
+    if i > #PICK_CHARS then break end
+    vim.wo[w].statusline = "%#NvimTreeWindowPicker#%=" .. PICK_CHARS:sub(i, i) .. "%="
+  end
+  vim.cmd.redraw()
+  api.nvim_echo({ { "Pick window (n: nuevo tab): " } }, false, {})
+  local ok, c = pcall(vim.fn.getcharstr)
+  for w, s in pairs(saved) do
+    if api.nvim_win_is_valid(w) then vim.wo[w].statusline = s end
+  end
+  vim.o.laststatus = laststatus
+  api.nvim_echo({ { "" } }, false, {})
+  if not ok or c == "" then return end
+  c = c:upper()
+  if c == "N" then -- an empty tab the file then replaces (it's a preview)
+    M.new_tab()
+    return api.nvim_get_current_win()
+  end
+  local i = PICK_CHARS:find(c, 1, true)
+  return i and wins[i]
 end
 
 -- Asks before dropping unsaved changes. false = saved or nothing to save, true = discard,

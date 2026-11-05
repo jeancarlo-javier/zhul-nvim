@@ -96,6 +96,8 @@ return {
           resize_window = true,
           window_picker = {
             enable = true,
+            -- same letters, plus n = open in a new tab (lua/split_tabs.lua)
+            picker = function() return require("split_tabs").pick_window() end,
           },
         },
       },
