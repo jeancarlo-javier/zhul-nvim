@@ -278,8 +278,10 @@ for _, lhs in ipairs({ "<M-w>", "∑" }) do
     tabs.close()
   end, { desc = "Close tab" })
 end
--- Opt+n: new empty tab (left Opt+n is a dead key on ABC, so right Opt only)
-keymap.set("n", "<M-n>", tabs.new_tab, { desc = "New empty tab" })
+-- Opt+t: new empty tab. Left Opt+t types † on ABC (Opt+n would be a dead key there).
+for _, lhs in ipairs({ "<M-t>", "†" }) do
+  keymap.set("n", lhs, tabs.new_tab, { desc = "New empty tab" })
+end
 -- Opt+q: leave diff mode back to the plain file (gitsigns <space>hd split or a Diffview).
 -- Left Opt+q types œ on ABC.
 for _, lhs in ipairs({ "<M-q>", "œ" }) do
@@ -300,11 +302,11 @@ for lhs, step in pairs({ ["<M-h>"] = -1, ["˙"] = -1, ["<M-l>"] = 1, ["¬"] = 1 
   keymap.set("n", lhs, function() tabs.move(step) end, { desc = "Move tab " .. (step < 0 and "left" or "right") })
 end
 -- In insert/visual mode, without these, Opt+[ arrived as <Esc> + a pending "[". Insert
--- skips “ / ‘ / ∑ / œ / ˙ / ¬ so left Opt can still type them.
-for _, lhs in ipairs({ "<M-[>", "<M-]>", "<M-Tab>", "<M-w>", "<M-n>", "<M-q>", "<M-h>", "<M-l>" }) do
+-- skips “ / ‘ / ∑ / † / œ / ˙ / ¬ so left Opt can still type them.
+for _, lhs in ipairs({ "<M-[>", "<M-]>", "<M-Tab>", "<M-w>", "<M-t>", "<M-q>", "<M-h>", "<M-l>" }) do
   keymap.set({ "i", "x" }, lhs, "<Esc>" .. lhs, { remap = true })
 end
-for _, lhs in ipairs({ "“", "‘", "∑", "œ", "˙", "¬" }) do
+for _, lhs in ipairs({ "“", "‘", "∑", "†", "œ", "˙", "¬" }) do
   keymap.set("x", lhs, "<Esc>" .. lhs, { remap = true })
 end
 
