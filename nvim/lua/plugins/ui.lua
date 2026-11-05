@@ -30,14 +30,18 @@ return {
     dependencies = { "nvim-tree/nvim-web-devicons" },
     event = "VeryLazy",
     init = function() -- at startup, so files opened before bufferline loads are counted too
-      local grp = vim.api.nvim_create_augroup("tab_order", { clear = true })
+      local function number(buf)
+        if vim.b[buf].tab_order then return end -- a rename (:saveas) keeps the tab in place
+        next_tab = next_tab + 1
+        vim.b[buf].tab_order = next_tab
+      end
+      -- files given on the command line are listed before this runs: number them first
+      for _, b in ipairs(vim.api.nvim_list_bufs()) do
+        if vim.bo[b].buflisted then number(b) end
+      end
       vim.api.nvim_create_autocmd("BufAdd", { -- also fires when a closed buffer is relisted
-        group = grp,
-        callback = function(ev)
-          if vim.b[ev.buf].tab_order then return end -- a rename (:saveas) keeps the tab in place
-          next_tab = next_tab + 1
-          vim.b[ev.buf].tab_order = next_tab
-        end,
+        group = vim.api.nvim_create_augroup("tab_order", { clear = true }),
+        callback = function(ev) number(ev.buf) end,
       })
 
       -- Drag a file tab onto another to move it there (bufferline has no drag). The press
