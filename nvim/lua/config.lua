@@ -290,6 +290,13 @@ for _, lhs in ipairs({ "<M-w>", "∑" }) do
     if package.loaded["diffview.lib"] and require("diffview.lib").get_current_view() then
       return vim.cmd("DiffviewClose")
     end
+    -- an empty split ([No Name], nothing typed) has no tab to close: close the split itself
+    if vim.bo.buftype == "" and vim.api.nvim_buf_get_name(0) == "" and not vim.bo.modified then
+      local editors = vim.tbl_filter(function(w)
+        return vim.api.nvim_win_get_config(w).relative == "" and vim.bo[vim.api.nvim_win_get_buf(w)].buftype == ""
+      end, vim.api.nvim_tabpage_list_wins(0))
+      if #editors > 1 then return vim.cmd.close() end
+    end
     close_tab()
   end, { desc = "Close tab" })
 end
