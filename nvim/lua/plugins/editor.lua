@@ -8,6 +8,25 @@ return {
     "nvim-telescope/telescope.nvim",
     dependencies = { "nvim-lua/plenary.nvim" },
     cmd = "Telescope",
+    init = function()
+      -- hint for the git_status refresh mapping, in the preview's bottom border
+      vim.api.nvim_create_autocmd("FileType", {
+        pattern = "TelescopePrompt",
+        callback = function(ev)
+          vim.schedule(function()
+            local picker = require("telescope.actions.state").get_current_picker(ev.buf)
+            if not (picker and picker.prompt_title == "Git Status" and picker.layout.preview) then return end
+            local border = picker.layout.preview.border
+            -- nil first: change_title only takes a list of titles when there is no title yet
+            border._border_win_options.title = nil
+            border:change_title({
+              { pos = "N", text = picker.preview_title },
+              { pos = "S", text = "Esc r: refrescar" },
+            })
+          end)
+        end,
+      })
+    end,
     keys = {
       { "<leader>ff", "<cmd>Telescope find_files<cr>", desc = "Find files" },
       { "<leader>fa", "<cmd>Telescope find_files hidden=true no_ignore=false<cr>", desc = "Find all files (inc. hidden)" },
@@ -48,6 +67,17 @@ return {
         },
       },
       pickers = {
+        git_status = {
+          mappings = {
+            n = {
+              -- The picker is a snapshot; reopen it to re-run git status
+              ["r"] = function(bufnr)
+                require("telescope.actions").close(bufnr)
+                require("telescope.builtin").git_status()
+              end,
+            },
+          },
+        },
         buffers = {
           sort_lastused = true,
           mappings = {
