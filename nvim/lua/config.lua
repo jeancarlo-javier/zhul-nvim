@@ -240,8 +240,9 @@ keymap.set("n", "<leader>tl", function() require("translate").prompt_lang() end,
 keymap.set("x", "<leader>tt", function() require("translate").selection() end,
   { desc = "Traducir selección (ES+EN)" })
 
--- Consulta IA (cs -q, solo lectura) → modal tipo chat. Con selección: sobre ese código;
--- sin selección: pregunta libre sobre el archivo.
+-- Consulta/edición IA → un modal (lua/query.lua): `a` escribe y Jev decide si responder
+-- (cs -q), cambiar (cs -e: diff a la izquierda, `y` aplica y guarda) o ambas; `e` fuerza el
+-- cambio. Con selección: ese código; sin ella: el archivo.
 keymap.set("n", "<leader>q", function() require("query").ask_file() end,
   { desc = "Consultar IA sobre el archivo" })
 keymap.set("x", "<leader>q", function()

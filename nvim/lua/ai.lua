@@ -4,7 +4,7 @@
 -- (explain, review, naming...) only build a prompt and call these two.
 --
 -- API:
---   require("ai").ask(prompt, cb)      -- cb(answer_string | nil, err_string | nil)
+--   require("ai").ask(prompt, cb, cmd?, env?) -- cb(answer_string | nil, err_string | nil)
 --   require("ai").judge(state, questions, cb)  -- fast typed judgment (~0.4s), see M.judge
 --   require("ai").modal(title, lines, ctx?)  -- ctx = { lines, ft, title } → code pane on the left
 --                                            -- returns { set = fn(lines), set_ctx_extra = fn(lines, notes?, hl?), buf, win, ctx_win }
@@ -34,12 +34,15 @@ M.cmd = { "cs", "-q" }
 -- Speed/quality balance for editor queries (read by cs -q).
 M.env = { CS_MODEL = "sonnet", CS_EFFORT = "medium" }
 
-function M.ask(prompt, cb)
-  if vim.fn.executable(M.cmd[1]) == 0 then
-    return cb(nil, "falta `" .. M.cmd[1] .. "` en PATH")
+-- cmd: optional argv prefix instead of M.cmd (e.g. { "cs", "-e" } for edit proposals);
+-- env: optional instead of M.env (another model or effort for that call).
+function M.ask(prompt, cb, cmd, env)
+  cmd = cmd or M.cmd
+  if vim.fn.executable(cmd[1]) == 0 then
+    return cb(nil, "falta `" .. cmd[1] .. "` en PATH")
   end
-  local argv = vim.list_extend(vim.deepcopy(M.cmd), { prompt })
-  vim.system(argv, { text = true, cwd = vim.fn.getcwd(), env = M.env }, vim.schedule_wrap(function(res)
+  local argv = vim.list_extend(vim.deepcopy(cmd), { prompt })
+  vim.system(argv, { text = true, cwd = vim.fn.getcwd(), env = env or M.env }, vim.schedule_wrap(function(res)
     if res.code ~= 0 then
       local msg = vim.trim(res.stderr or "")
       if msg == "" then msg = vim.trim(res.stdout or "") end -- "" is truthy in Lua, so no `or` chain
@@ -158,7 +161,10 @@ function M.modal(title, lines, ctx)
   local function set_ctx_extra(l, notes, hl, gutter)
     if not (cbuf and vim.api.nvim_buf_is_valid(cbuf)) then return end
     vim.api.nvim_buf_clear_namespace(cbuf, NS, 0, -1)
+    local mod = vim.bo[cbuf].modifiable -- callers may lock the pane; writing here still works
+    vim.bo[cbuf].modifiable = true
     vim.api.nvim_buf_set_lines(cbuf, #ctx.lines, -1, false, l)
+    vim.bo[cbuf].modifiable = mod
     for _, h in ipairs(hl or {}) do
       vim.api.nvim_buf_set_extmark(cbuf, NS, h[1], 0, { line_hl_group = h[2] })
     end
