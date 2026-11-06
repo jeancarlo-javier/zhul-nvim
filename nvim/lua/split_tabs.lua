@@ -22,6 +22,7 @@ local function in_diffview(tp)
   end
   return false
 end
+M.in_diffview = in_diffview
 
 function M.is_split(tp)
   if not tp or tp == 0 then tp = api.nvim_get_current_tabpage() end

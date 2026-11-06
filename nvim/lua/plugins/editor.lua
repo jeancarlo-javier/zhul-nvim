@@ -411,6 +411,8 @@ return {
         end,
         view_opened = function(view)
           diffview_label_tabs()
+          -- nvim-tree's tab.sync.open (for split tabs) follows into new tabs: not into a Diffview
+          vim.schedule(function() require("nvim-tree.api").tree.close_in_this_tab() end)
           view.was_narrow = vim.o.columns < DIFFVIEW_NARROW
           if view.was_narrow then vim.schedule(function() view.panel:close() end) end
         end,

@@ -108,8 +108,10 @@ function M.render(winid)
   if vim.bo[buf].modified then
     left = left .. " %#WinbarModified#●%*"
   end
-  -- "x" like a tab's: closes this split and its file (a file tab in the main tabpage)
-  left = left .. string.format("  %%%d@v:lua.winbar_close@%%#WinbarPath#x%%*%%X", win)
+  -- "x" like a tab's: closes this split and its file (a file tab in the main tabpage); not in a Diffview
+  if not require("split_tabs").in_diffview(vim.api.nvim_win_get_tabpage(win)) then
+    left = left .. string.format("  %%%d@v:lua.winbar_close@%%#WinbarPath#x%%*%%X", win)
+  end
 
   -- Derecha: cambios de git.
   local parts = {}
