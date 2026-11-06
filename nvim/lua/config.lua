@@ -257,17 +257,20 @@ end, { desc = "Consultar IA sobre la selección" })
 -- Cycling follows the bar's order (custom sort_by) and walks into split tabs too.
 local tabs = require("split_tabs")
 tabs.setup()
-keymap.set("n", "<S-h>", function() tabs.cycle(-1) end, { desc = "Previous tab" })
-keymap.set("n", "<S-l>", function() tabs.cycle(1) end, { desc = "Next tab" })
+-- No tab switching from a floating window (modals like <leader>q, pickers): there are no tabs
+-- there, and switching would load another file into the float.
+local function in_float() return vim.api.nvim_win_get_config(0).relative ~= "" end
+keymap.set("n", "<S-h>", function() if in_float() then vim.cmd("normal! H") else tabs.cycle(-1) end end, { desc = "Previous tab" })
+keymap.set("n", "<S-l>", function() if in_float() then vim.cmd("normal! L") else tabs.cycle(1) end end, { desc = "Next tab" })
 -- Opt+[ / Opt+] like VSCode. Right Opt is Meta in Warp (<M-[>); left Opt types “ / ‘ on ABC
 for _, lhs in ipairs({ "<M-[>", "“" }) do
-  keymap.set("n", lhs, function() tabs.cycle(-1) end, { desc = "Previous tab" })
+  keymap.set("n", lhs, function() if not in_float() then tabs.cycle(-1) end end, { desc = "Previous tab" })
 end
 for _, lhs in ipairs({ "<M-]>", "‘" }) do
-  keymap.set("n", lhs, function() tabs.cycle(1) end, { desc = "Next tab" })
+  keymap.set("n", lhs, function() if not in_float() then tabs.cycle(1) end end, { desc = "Next tab" })
 end
 -- Opt+Tab like VSCode's Ctrl+Tab: jump to the last used tab
-keymap.set("n", "<M-Tab>", "<cmd>silent! buffer #<CR>", { desc = "Last used tab" })
+keymap.set("n", "<M-Tab>", function() if not in_float() then vim.cmd("silent! buffer #") end end, { desc = "Last used tab" })
 -- Opt+w like VSCode's Cmd+W: close the current file tab, or the current split and its file
 -- in a split tab (the whole view inside a Diffview). Left Opt+w types ∑ on ABC.
 for _, lhs in ipairs({ "<M-w>", "∑" }) do
