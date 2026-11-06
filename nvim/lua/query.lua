@@ -282,9 +282,18 @@ function M.chat(context, default, pane)
 
     vim.keymap.set("n", "a", function()
       if busy then return vim.notify("Consulta: espera la respuesta en curso", vim.log.levels.WARN) end
-      vim.ui.input({ prompt = "Repregunta: " }, function(fq)
+      -- docked at the bottom of the answer pane, full width, like Telescope's prompt (snacks.input)
+      local ww, wh = vim.api.nvim_win_get_width(m.win), vim.api.nvim_win_get_height(m.win)
+      local input = vim.ui.input({ prompt = "Repregunta", win = { relative = "win", win = m.win,
+        row = wh - 3, col = 0, width = ww - 2 } }, function(fq)
         if fq and vim.trim(fq) ~= "" then send(fq) end
       end)
+      -- docked to the modal: it goes when the modal does, or it's left floating over the editor
+      if type(input) == "table" and input.close then
+        vim.api.nvim_create_autocmd("WinClosed", { pattern = tostring(m.win), once = true, callback = function()
+          vim.schedule(function() if input:valid() then input:close() end end)
+        end })
+      end
     end, { buffer = m.buf, nowait = true, desc = "Repreguntar sobre este código" })
 
     send(q)
