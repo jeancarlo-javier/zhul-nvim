@@ -9,6 +9,22 @@ return {
     dependencies = { "nvim-lua/plenary.nvim" },
     cmd = "Telescope",
     init = function()
+      -- line numbers in file previews; git diffs show the file's own lines (lua/lnum.lua).
+      -- The preview window is reused, so previews of non-files turn them back off.
+      vim.api.nvim_create_autocmd("User", {
+        pattern = "TelescopePreviewerLoaded",
+        callback = function()
+          local e = require("telescope.actions.state").get_selected_entry()
+          e = type(e) == "table" and e or {}
+          local win, lnum = vim.api.nvim_get_current_win(), require("lnum")
+          -- git_status previews these as `git diff HEAD` (as its git_file_diff does): the + side is the file now
+          if e.status and e.status ~= "??" and e.status ~= "A " then
+            lnum.set(win, { spans = {}, diff = 0, side = "+" })
+          else -- e.path is absolute, so a cwd below the git root still finds the file
+            lnum.set(win, type(e.path) == "string" and vim.fn.filereadable(e.path) == 1 and "plain" or nil)
+          end
+        end,
+      })
       -- hint for the git_status refresh mapping, in the preview's bottom border
       vim.api.nvim_create_autocmd("FileType", {
         pattern = "TelescopePrompt",

@@ -154,14 +154,15 @@ function M.modal(title, lines, ctx)
   set(lines)
   -- Replace what's shown under ctx.lines in the code pane (ctx.lines always stay on top),
   -- all notes and line highlights. No-op without ctx or once closed.
-  local function set_ctx_extra(l, notes, hl)
+  -- `gutter`: columns the pane's line numbers take, so notes wrap inside the text area
+  local function set_ctx_extra(l, notes, hl, gutter)
     if not (cbuf and vim.api.nvim_buf_is_valid(cbuf)) then return end
     vim.api.nvim_buf_clear_namespace(cbuf, NS, 0, -1)
     vim.api.nvim_buf_set_lines(cbuf, #ctx.lines, -1, false, l)
     for _, h in ipairs(hl or {}) do
       vim.api.nvim_buf_set_extmark(cbuf, NS, h[1], 0, { line_hl_group = h[2] })
     end
-    local width = vim.api.nvim_win_is_valid(lwin) and vim.api.nvim_win_get_width(lwin) or 60
+    local width = (vim.api.nvim_win_is_valid(lwin) and vim.api.nvim_win_get_width(lwin) or 60) - (gutter or 0)
     local top_fill = 0
     for _, n in ipairs(notes or {}) do
       if n.row < vim.api.nvim_buf_line_count(cbuf) then
